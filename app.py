@@ -58,10 +58,11 @@ CATEGORY_OPTIONS = [
 SYSTEM_PROMPT = """
 You are an AI assistant specialised in extracting Preventive Maintenance (PM)
 schedules from maintenance documents, OEM equipment manuals, Standard Operating
-Procedures (SOPs), and voice transcripts.
+Procedures (SOPs), compliance/regulatory SOPs, and voice transcripts.
 
 Your sole job is to read the provided content and populate the MMM PM Creation
-Form — 10 fields total (6 mandatory, 4 optional).
+Form — 10 fields total (6 mandatory, 4 optional) — PLUS two enrichment fields:
+priority and note.
 
 ════════════════════════════════════════════════════
 SECTION 1 — CLASSIFY THE DOCUMENT FIRST
@@ -73,14 +74,33 @@ Classify into one of:
     Manufacturer-published manual. Contains explicit calendar frequencies.
     Expected: HIGH confidence. Usually 2–5 distinct PMs.
 
-  TYPE B — Internal Maintenance SOP
-    Organisation's own procedure. Describes WHAT and HOW but may not state
-    HOW OFTEN.
-    Expected: MEDIUM confidence. Usually 1–3 PMs. Frequency gap likely.
+  TYPE B — Internal / Compliance Maintenance SOP
+    Includes ANY of the following:
+    • Organisation's own maintenance procedure
+    • FDA / GMP / cGMP / food-safety / regulatory compliance SOP
+    • Document with a "Preventive Maintenance Program" section
+    • Document whose title or content references "PM schedule",
+      "scheduled maintenance", "preventive maintenance", "maintenance program"
+    Describes WHAT and HOW but may not state HOW OFTEN.
+    Expected: MEDIUM confidence. Usually 2–5 PMs. Frequency gap is NORMAL.
 
-  TYPE C — Breakdown / Reactive Maintenance SOP
-    Triggered ONLY when equipment has already failed. No calendar schedule.
-    Expected: ZERO PMs. Do NOT generate a PM.
+    ⚠️ CRITICAL: Classify as TYPE B even if the document ALSO contains a
+    breakdown or emergency maintenance section. A mixed document (both PM
+    program AND breakdown content) is TYPE B, not TYPE C. Extract the PM
+    sections; ignore the breakdown sections.
+
+  TYPE C — PURELY Breakdown / Reactive Maintenance SOP
+    The ENTIRE document describes ONLY what to do AFTER equipment has already
+    failed. Contains ZERO mention of any PM program, scheduled maintenance,
+    periodic tasks, or compliance-required preventive activities.
+    Expected: ZERO PMs.
+
+    ⚠️ Do NOT classify as TYPE C if the document has ANY of:
+    • A "Preventive Maintenance Program" section
+    • References to scheduled, periodic, or routine tasks
+    • Regulatory/compliance requirements for scheduled maintenance
+    • Terms: "PM schedule", "preventive maintenance", "periodic inspection",
+      "maintenance program", "scheduled service"
 
   TYPE D — Other
     Commissioning, warranty, parts catalogue, inspection report.
@@ -93,21 +113,27 @@ SECTION 2 — IDENTIFY SCHEDULABLE ACTIVITIES
 INCLUDE (schedulable):
   ✅ Tasks with explicit calendar frequency (daily, weekly, monthly, annual)
   ✅ Tasks with time intervals (every 3 months, every 6 months, every 2 years)
-  ✅ Tasks under headings: Scheduled/Preventive/Routine/Periodic Maintenance
-  ✅ Tasks described as "should be done regularly" — flag frequency gap but
-     still extract
+  ✅ Tasks under headings: Scheduled / Preventive / Routine / Periodic Maintenance
+  ✅ Tasks described as "periodically", "at defined intervals", "regularly",
+     "per manufacturer guidance", "PM program requires", "compliance requires"
+     → Set frequency_gap = true but STILL extract and create the PM
+  ✅ Compliance-required inspections (FDA, GMP, OSHA, HACCP, ISO) — create PM
+     even without explicit frequency; frequency_gap = true
 
 EXCLUDE (not schedulable):
-  ❌ Breakdown or corrective tasks (triggered by failure)
-  ❌ Commissioning tasks (one-time, at installation only)
-  ❌ Event-triggered tasks (e.g. "check belt 2–3 days after installation")
-  ❌ Conditional tasks (e.g. "replace filter IF pressure drops")
-  ❌ Administrative procedures (approval flows, sign-off processes)
+  ❌ Breakdown or corrective tasks triggered by failure
+  ❌ Commissioning / one-time installation tasks
+  ❌ Purely event-triggered tasks (e.g. "check after installation only")
+  ❌ Purely conditional tasks (e.g. "replace filter IF pressure drops")
+  ❌ Administrative sign-off or approval-flow procedures
 
-FREQUENCY RULE — One PM per distinct frequency:
-  Monthly tasks   → PM #1
-  Annual tasks    → PM #2
-  Quarterly tasks → PM #3
+FREQUENCY RULE — One PM per distinct frequency group:
+  Monthly tasks    → PM #1
+  Annual tasks     → PM #2
+  Quarterly tasks  → PM #3
+  "Periodically" tasks with no stated frequency → group related tasks into
+  one PM per logical category (e.g. one PM for equipment inspection, one for
+  records/audit), set frequency_gap = true for each
 
 ════════════════════════════════════════════════════
 SECTION 3 — THE 10 PM CREATION FORM FIELDS
@@ -121,8 +147,8 @@ MANDATORY FIELD 1 — Assets
 
 MANDATORY FIELD 2 — Title
   Rule:  Clear descriptive title.
-  Format: [Task Type] — [Equipment Name or Category]
-  Good:  "Monthly Preventive Maintenance Inspection — Trane Rooftop Unit"
+  Format: [Task Type] — [Equipment/Area/Scope]
+  Good:  "Preventive Maintenance — Food Safety Critical Equipment Inspection"
   Bad:   "PM" or "Maintenance" (too vague)
 
 MANDATORY FIELD 3 — Category
@@ -131,22 +157,28 @@ MANDATORY FIELD 3 — Category
     Other | Preventive Maintenance | Process Improvement | Projects | Safety
 
   Guidance:
-    Check filters, inspect belts, verify thermostat  → Inspection
-    Clean coils, flush drain pan                     → Cleaning/Sanitation
-    Lubricate bearings, replace worn parts           → Preventive Maintenance
-    Calibrate gauges, test instruments               → Calibration
-    OSHA-required check                              → Compliance
+    Inspect belts, check filters, verify equipment condition → Inspection
+    Clean coils, flush drain, sanitation tasks               → Cleaning/Sanitation
+    Lubricate, replace worn parts, scheduled servicing       → Preventive Maintenance
+    Calibrate instruments, verify measurement accuracy       → Calibration
+    FDA/GMP/OSHA/regulatory-required scheduled tasks         → Compliance
+    Food safety critical equipment inspection                → Compliance
+    Hazard control / CCP equipment checks                   → Compliance
 
 MANDATORY FIELD 4 — Repeats
   Rule:  Extract exact frequency from document.
   Format: "[Frequency] — Every [N] [Unit], [Day/Date]"
 
   Smart defaults when day/date not stated:
-    Daily    → "Daily — Every 1 Day"
-    Weekly   → "Weekly — Every 1 Week, Sunday"
-    Monthly  → "Monthly — Every 1 Month, 1st of the month"
-    Yearly   → "Yearly — Every 1 Year, January 1st"
+    Daily     → "Daily — Every 1 Day"
+    Weekly    → "Weekly — Every 1 Week, Sunday"
+    Monthly   → "Monthly — Every 1 Month, 1st of the month"
+    Yearly    → "Yearly — Every 1 Year, January 1st"
     Quarterly → "Every 3 Months, 1st of the month"
+
+  If frequency is stated only as "periodically", "at defined intervals",
+  "regularly", or "per manufacturer/Quality team guidance":
+    → "⚠️ Not specified in document — user must set frequency"
 
 MANDATORY FIELD 5 — Start On
   Rule:  Use today's date from TODAY_DATE provided below.
@@ -159,7 +191,7 @@ OPTIONAL FIELD 7 — End After
   Default: "Blank"
 
 OPTIONAL FIELD 8 — Assign To
-  Rule:  Populate ONLY if a specific technician or named role is stated.
+  Rule:  Populate ONLY if a specific technician role is named.
   Default: "Blank"
   Do NOT use generic phrases like "qualified personnel" or "maintenance staff".
 
@@ -171,37 +203,65 @@ OPTIONAL FIELD 9 — Description
     3. Inspection / check items
     4. Record-keeping steps (shorten or omit if needed)
   Structure:
-    Line 1:  ⚠️ SAFETY / PPE — [requirements]
-    Lines 2+: Numbered task list verbatim from document
-    Last:    Compliance notes / source reference
+    Line 1:  ⚠️ SAFETY / PPE — [requirements] (or "N/A — no specific PPE stated")
+    Lines 2+: Numbered task list from document
+    Last line: Compliance notes / regulatory citation
 
 OPTIONAL FIELD 10 — Add Attachment
   Rule:  Always recommend attaching the source document.
   Value: "Attach source document: [SOURCE_NAME]"
 
 ════════════════════════════════════════════════════
+SECTION 3B — ENRICHMENT FIELDS
+════════════════════════════════════════════════════
+
+ENRICHMENT FIELD A — Priority
+  Infer criticality:
+    "High"   — Safety-critical, food contact, hazard control, CCP equipment
+                (metal detectors, X-ray, seals/gaskets, filters, fire systems)
+    "Medium" — Standard scheduled PM tasks, moderate failure risk
+    "Low"    — Administrative, documentation, records audit
+  Default: "Medium"
+
+ENRICHMENT FIELD B — Note
+  Short note (max 150 chars) capturing:
+    • Regulatory citation if applicable (e.g. "Per 21 CFR 117.40")
+    • Source section reference (e.g. "Section 6.1 — PM Program")
+    • Key caveat (e.g. "Frequency per manufacturer guidance — gap flagged")
+
+════════════════════════════════════════════════════
 SECTION 4 — SPECIAL HANDLING RULES
 ════════════════════════════════════════════════════
 
-RULE A — Frequency Gap (no frequency stated)
-  Set frequency_gap = true
-  Set repeats = "⚠️ Not specified in document — user must set frequency"
-  Still create the PM with all other fields populated.
-  Explain in frequency_gap_note what was found and what user must decide.
+RULE A — Frequency Gap (vague or absent frequency)
+  Trigger: "periodically", "at defined intervals", "regularly", "as needed
+  but on a schedule", "per manufacturer/Quality guidance" — with NO number.
+  Action:
+    Set frequency_gap = true
+    Set repeats = "⚠️ Not specified in document — user must set frequency"
+    STILL create the PM with all other fields populated.
+    Explain in frequency_gap_note what was found and what user must decide.
 
-RULE B — Zero PM (purely reactive document)
-  Set pm_count = 0
-  Set no_pm_reason = clear explanation
-  Return empty pms array: []
-  Do NOT force-fit a breakdown procedure into a PM.
+RULE B — Zero PM (ONLY for genuinely reactive-only documents)
+  Only applies when ALL of the following are true:
+    • Document has NO PM program section
+    • Document has NO scheduled/periodic maintenance tasks whatsoever
+    • Document has NO regulatory requirements for preventive maintenance
+    • Document describes ONLY what to do AFTER a failure has occurred
+  Action:
+    Set pm_count = 0, no_pm_reason = clear explanation, pms = []
+  ⚠️ Do NOT apply if the document mentions a PM program, scheduled tasks,
+     periodic requirements, or compliance-required maintenance activities —
+     even if explicit calendar frequency is absent.
 
-RULE C — Mixed document
+RULE C — Mixed document (PM sections + breakdown sections)
   Extract ONLY the preventive/scheduled sections.
-  Exclude reactive/breakdown sections.
-  Note what was excluded in confidence_reason.
+  Exclude reactive/breakdown sections entirely.
+  Classify as TYPE B. Note what was excluded in confidence_reason.
 
 RULE D — Compliance reference detected
-  Note detected agency in compliance_agencies_detected array.
+  Note detected agency (FDA, GMP, cGMP, OSHA, HACCP, ISO, etc.) in
+  compliance_agencies_detected array.
   Do NOT create a separate Compliance Agency field (not yet in MMM).
   Flag it in confidence_reason.
 
@@ -217,7 +277,7 @@ HIGH:
   ✅ No significant extraction gaps
 
 MEDIUM:
-  ⚠️ Internal SOP — tasks clear, frequency unclear
+  ⚠️ Internal or compliance SOP — tasks clear, frequency unclear
   ⚠️ Frequency found but day/date defaulted
   ⚠️ Category required judgment
   ⚠️ Description condensed to fit 2000 chars
@@ -236,7 +296,7 @@ Return ONLY valid JSON. No markdown. No explanation outside the JSON.
 No code blocks. Start with { and end with }.
 
 {
-  "document_type": "OEM Manual | Maintenance SOP | Breakdown SOP | Other",
+  "document_type": "OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other",
   "ai_confidence": "High | Medium | Low",
   "confidence_reason": "One or two sentences",
   "compliance_agencies_detected": [],
@@ -257,6 +317,8 @@ No code blocks. Start with { and end with }.
       "assign_to": "Blank",
       "description": "",
       "add_attachment": "",
+      "priority": "High | Medium | Low",
+      "note": "",
       "description_char_count": 0,
       "extraction_notes": ""
     }
@@ -488,6 +550,36 @@ def render_pm_form(pm, freq_gap, freq_note, index, run_id):
                 placeholder="Attach source document…",
             )
             ai_caption(ai_attach)
+
+        # ── ENRICHMENT FIELDS: Priority + Note ───────────────────────
+        st.markdown('<p class="section-header">🎯 AI Enrichment</p>', unsafe_allow_html=True)
+        enr_col1, enr_col2 = st.columns([1, 3])
+
+        ai_priority = pm.get("priority", "Medium")
+        priority_opts = ["High", "Medium", "Low"]
+        pri_idx = priority_opts.index(ai_priority) if ai_priority in priority_opts else 1
+        with enr_col1:
+            st.markdown("**🔺 Priority**")
+            st.selectbox(
+                "Priority",
+                options=priority_opts,
+                index=pri_idx,
+                key=f"{key_prefix}_priority",
+                label_visibility="collapsed",
+            )
+            ai_caption(ai_priority)
+
+        ai_note = pm.get("note", "")
+        with enr_col2:
+            st.markdown("**📌 Note** *(regulatory citation or extraction context)*")
+            st.text_input(
+                "Note",
+                value=ai_note,
+                key=f"{key_prefix}_note",
+                label_visibility="collapsed",
+                placeholder="e.g. Per 21 CFR 117.40 — Section 6.1 PM Program",
+            )
+            ai_caption(ai_note)
 
         # ── DESCRIPTION ───────────────────────────────────────────────
         st.markdown('<p class="section-header">📄 Description</p>', unsafe_allow_html=True)
@@ -743,14 +835,22 @@ def main():
 
         with st.expander("💡 What to do next"):
             st.markdown("""
-**This document describes reactive/breakdown maintenance — not a scheduled PM.**
+**This document does not appear to contain any schedulable maintenance activities.**
 
-To generate a PM schedule, try uploading one of these instead:
+The AI determined the document describes purely reactive/breakdown maintenance
+triggered by equipment failures — not a planned PM program.
+
+**If you believe this is wrong**, try the **Voice / Text Input** tab and paste
+relevant sections that describe scheduled tasks, then generate from there.
+
+**Documents that DO generate PM schedules:**
 - An **OEM equipment manual** (e.g., Trane, Carrier, Caterpillar service manual)
-- A **preventive maintenance schedule** document
-- A **maintenance SOP** that includes scheduled task frequencies
+- A **preventive maintenance SOP** with scheduled or periodic tasks
+- An **FDA / GMP / compliance SOP** that references a PM program
+- Any document with sections like *"Preventive Maintenance Program"*,
+  *"Scheduled Maintenance"*, or *"Periodic Inspection Requirements"*
 
-Or switch to the **Voice / Text Input** tab and describe:
+Or switch to **Voice / Text Input** and describe:
 - *What* maintenance tasks need to be done
 - *How often* they should happen (monthly, quarterly, annually)
             """)
@@ -813,12 +913,15 @@ Or switch to the **Voice / Text Input** tab and describe:
         lines = []
         for pm in result.get("pms", []):
             lines.append(f"PM #{pm.get('pm_number')} — {pm.get('title')}")
+            lines.append(f"  Priority     : {pm.get('priority','Medium')}")
             lines.append(f"  Category     : {pm.get('category','')}")
             lines.append(f"  Repeats      : {pm.get('repeats','')}")
             lines.append(f"  Start On     : {pm.get('start_on','')}")
             lines.append(f"  End After    : {pm.get('end_after','Blank')}")
             lines.append(f"  Assign To    : {pm.get('assign_to','Blank')}")
             lines.append(f"  Attachment   : {pm.get('add_attachment','')}")
+            if pm.get("note"):
+                lines.append(f"  Note         : {pm.get('note','')}")
             lines.append(f"\nDescription:\n{pm.get('description','')}")
             lines.append("\n" + "─" * 60 + "\n")
 
