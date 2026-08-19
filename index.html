@@ -738,7 +738,7 @@ function updateGenBtn() {
 // ── System prompt ──────────────────────────────────────────────────────────
 const SYS = `You are an AI assistant specialised in extracting Preventive Maintenance (PM) schedules from maintenance documents, OEM equipment manuals, Standard Operating Procedures (SOPs), compliance/regulatory SOPs, and voice transcripts.
 
-Your sole job is to read the provided content and populate the MMM PM Creation Form — 10 fields total (6 mandatory, 4 optional) — PLUS two enrichment fields: priority and note.
+Your sole job is to read the provided content and populate the MMM PM Creation Form — 10 fields total (6 mandatory, 4 optional) — PLUS three enrichment fields: priority, note, and compliance agency.
 
 ════════════════════════════════════════════════════
 SECTION 1 — CLASSIFY THE DOCUMENT FIRST
@@ -789,6 +789,7 @@ FIELD 10 — Add Attachment: "Attach source document: [SOURCE_NAME]"
 
 ENRICHMENT A — Priority: High (safety-critical/food contact/CCP) | Medium (standard PM) | Low (admin tasks)
 ENRICHMENT B — Note: Regulatory citation max 150 chars, e.g. "Per 21 CFR 117.40 — Section 6.1"
+ENRICHMENT C — Compliance Agency: If the document or voice mentions a regulatory body, standard, or compliance programme — extract it as a short agency/standard name. Use the closest match from this list: OSHA | FDA | EPA | ISO 9001 | ISO 14001 | ISO 45001 | NFPA | ANSI | ASHRAE | GMP | cGMP | HACCP | NSF | UL | ATEX | NEC | 21 CFR | Local Authority. If the agency is not on the list, return the exact name as spoken/written. If no compliance agency is mentioned, return empty string "".
 
 ════════════════════════════════════════════════════
 SECTION 4 — SPECIAL RULES
@@ -797,14 +798,14 @@ SECTION 4 — SPECIAL RULES
 RULE A — Frequency Gap: "periodically" → frequency_gap=true, still create PM.
 RULE B — Zero PM: ONLY when document has NO PM program, NO scheduled tasks, and ONLY describes post-failure reactive procedures.
 RULE C — Mixed document: Extract preventive sections only. TYPE B.
-RULE D — Compliance: Note detected agency in compliance_agencies_detected.
+RULE D — Compliance Agency: Extract agency per PM (not just document-level). A single document can have PMs under different agencies. Each PM's compliance_agency is independent.
 
 ════════════════════════════════════════════════════
 SECTION 5 — OUTPUT FORMAT
 ════════════════════════════════════════════════════
 
 Return ONLY valid JSON. No markdown. No explanation outside JSON.
-{"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","description_char_count":0,"extraction_notes":""}]}`;
+{"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","compliance_agency":"","description_char_count":0,"extraction_notes":""}]}`;
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function generate() {
@@ -996,7 +997,7 @@ function buildCard(pm, r) {
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div>
       <div class="field-label">Category <span class="field-req">*</span></div>
-      <select id="${id}-cat" class="field-input">
+      <select id="${id}-cat" class="field-input" onchange="onCatChange('${id}',this.value)">
         ${CATS.map(c=>`<option${c===pm.category?' selected':''}>${c}</option>`).join('')}
       </select>
     </div>
@@ -1071,6 +1072,29 @@ function buildCard(pm, r) {
       value="${esc(pm.add_attachment||'')}" placeholder="Source document auto-attached on creation">
   </div>
 
+  <!-- Compliance Agency (shown when Category=Compliance or agency detected) -->
+  <div id="${id}-comp-wrap" style="margin-bottom:12px;display:${(pm.category==='Compliance'||(pm.compliance_agency&&pm.compliance_agency.trim()))?'block':'none'}">
+    <hr style="margin:4px 0 14px;border:none;border-top:2px solid #fef3c7">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span style="font-size:0.8rem;font-weight:700;color:#b45309;letter-spacing:0.04em;text-transform:uppercase">Compliance Agency</span>
+    </div>
+    <select id="${id}-comp" class="field-input" onchange="onCompChange('${id}',this.value)"
+      style="border-color:#fcd34d;background:#fffbeb">
+      <option value="">— Select agency / standard —</option>
+      ${['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other'].map(a=>{
+        const sel = (pm.compliance_agency||'')=== a ? ' selected':'';
+        return `<option value="${a}"${sel}>${a}</option>`;
+      }).join('')}
+      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?`<option value="${esc(pm.compliance_agency)}" selected>${esc(pm.compliance_agency)}</option>`:''}
+    </select>
+    <input id="${id}-comp-other" type="text" class="field-input"
+      style="margin-top:8px;display:${(pm.compliance_agency==='Other')?'block':'none'}"
+      value="${esc(pm.compliance_agency==='Other'?'':pm.compliance_agency||'')}"
+      placeholder="Enter agency or standard name">
+    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?`<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected from ${pm.category==='Compliance'?'document/voice':'source'} — confirm before creating</span>`:''}
+  </div>
+
   <!-- Actions -->
   <hr style="margin:14px 0 14px;border:none;border-top:1px solid #f0f0f0">
   <div style="display:flex;gap:10px">
@@ -1093,6 +1117,26 @@ function setPri(id, val) {
     btn.style.background = active ? _priCol[p] : '#fff';
     btn.style.color       = active ? '#fff'     : _priCol[p];
   });
+}
+
+// ── Compliance Agency helpers ──────────────────────────────────────────────
+function onCatChange(id, val) {
+  const wrap = document.getElementById(`${id}-comp-wrap`);
+  if (!wrap) return;
+  // Show compliance section when category switches to Compliance
+  if (val === 'Compliance') {
+    wrap.style.display = 'block';
+  } else {
+    // Hide only if no agency was already detected
+    const comp = document.getElementById(`${id}-comp`);
+    if (!comp || !comp.value) wrap.style.display = 'none';
+  }
+}
+function onCompChange(id, val) {
+  const other = document.getElementById(`${id}-comp-other`);
+  if (!other) return;
+  other.style.display = val === 'Other' ? 'block' : 'none';
+  if (val !== 'Other') other.value = '';
 }
 
 // ── State / summary ────────────────────────────────────────────────────────
