@@ -3,199 +3,156 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MMM — Frank's green mountain coffee</title>
+<title>AI PM Schedule Generator — MMM</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ── Base ────────────────────────────────────────────────────────────────── */
-*  { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', sans-serif; background: #f0f0f0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: #f0f0f0; min-height: 100vh; }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
 #topbar {
-  height: 56px; background: #fff; border-bottom: 1px solid #e0e0e0;
-  display: flex; align-items: center; padding: 0 20px; gap: 16px;
-  flex-shrink: 0; z-index: 100; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  height: 54px; background: #fff; border-bottom: 1px solid #ddd;
+  display: flex; align-items: center; padding: 0 28px; gap: 18px;
+  position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 4px rgba(0,0,0,.06);
 }
-.siemens-logo { font-size: 1.15rem; font-weight: 700; letter-spacing: .12em; color: #000; }
-.org-name     { font-size: 0.9rem; color: #222; font-weight: 400; padding-left: 14px; border-left: 1px solid #ddd; }
-.top-search   {
-  margin-left: auto; display: flex; align-items: center; gap: 8px;
-  background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 22px;
-  padding: 6px 14px; width: 220px;
-}
-.top-search input { background: transparent; border: none; outline: none; font-size: 0.85rem; color: #444; width: 100%; }
+.siemens-wordmark { font-size: 1.1rem; font-weight: 700; letter-spacing: .14em; color: #000; }
+.topbar-divider   { width: 1px; height: 22px; background: #ddd; }
+.topbar-title     { font-size: 0.875rem; font-weight: 500; color: #333; }
+.topbar-badge     { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.topbar-badge span { font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.badge-proto  { background: #fff3cd; color: #856404; border: 1px solid #fde68a; }
+.badge-ticket { background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; }
 
-/* ── Body layout ─────────────────────────────────────────────────────────── */
-#body-wrap { display: flex; flex: 1; overflow: hidden; }
+/* ── Settings toggle ─────────────────────────────────────────────────────── */
+#api-settings-btn {
+  display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #888;
+  cursor: pointer; padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px;
+  background: #fafafa; transition: all .15s; user-select: none;
+}
+#api-settings-btn:hover { background: #f0f0f0; color: #555; }
+#api-settings-panel {
+  background: #fffbeb; border-bottom: 1px solid #fde68a;
+  padding: 10px 28px; display: none; align-items: center; gap: 12px;
+}
+#api-settings-panel input {
+  font-family: monospace; font-size: 0.82rem; border: 1px solid #e0e0e0;
+  border-radius: 6px; padding: 6px 10px; outline: none; width: 340px;
+  transition: border-color .15s;
+}
+#api-settings-panel input:focus { border-color: #009688; }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
-#sidebar {
-  width: 220px; background: #fff; border-right: 1px solid #e0e0e0;
-  display: flex; flex-direction: column; flex-shrink: 0;
-  transition: width .2s ease; overflow: hidden;
-}
-#sidebar.collapsed { width: 52px; }
-#sidebar.collapsed .nav-label  { display: none; }
-#sidebar.collapsed #sidebar-toggle svg { transform: rotate(180deg); }
+/* ── Page layout ─────────────────────────────────────────────────────────── */
+.page-wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
 
-#sidebar-toggle {
-  display: flex; align-items: center; justify-content: flex-end;
-  padding: 10px 14px 6px; color: #666; cursor: pointer; user-select: none;
+/* ── Page header ─────────────────────────────────────────────────────────── */
+.page-header { margin-bottom: 22px; }
+.page-header h1 { font-size: 1.35rem; font-weight: 700; color: #1a1a1a; }
+.page-header p  { font-size: 0.875rem; color: #777; margin-top: 4px; line-height: 1.5; }
+.doc-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.doc-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.72rem; font-weight: 500; padding: 3px 10px; border-radius: 999px;
 }
-#sidebar-toggle:hover { color: #009688; }
-#sidebar-toggle svg { transition: transform .2s; }
+.pill-teal   { background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; }
+.pill-amber  { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 
-.nav-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; cursor: pointer; font-size: 0.875rem; color: #333;
-  transition: background .15s, color .15s; white-space: nowrap; user-select: none;
-  position: relative;
-}
-.nav-item:hover { background: #f5faf9; color: #009688; }
-.nav-item.active { color: #009688; background: #e8f5f3; }
-.nav-item.active::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
-  width: 3px; background: #009688; border-radius: 0 2px 2px 0;
-}
-.nav-item svg { flex-shrink: 0; width: 20px; height: 20px; }
-
-/* Create button — teal circle */
-.create-btn {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; cursor: pointer; font-size: 0.875rem; font-weight: 500;
-  color: #333; transition: background .15s; white-space: nowrap; user-select: none;
-}
-.create-btn:hover { background: #f5faf9; color: #009688; }
-.create-circle {
-  width: 26px; height: 26px; background: #009688; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.create-circle svg { color: white; width: 15px; height: 15px; }
-
-/* Started pill */
-.started-pill {
-  display: flex; align-items: center; gap: 9px;
-  margin: 8px 10px; padding: 8px 12px; border: 2px solid #009688;
-  border-radius: 22px; cursor: pointer; font-size: 0.82rem; color: #009688;
-  font-weight: 500; white-space: nowrap; transition: background .15s;
-}
-.started-pill:hover { background: #e8f5f3; }
-
-/* ── Main content ─────────────────────────────────────────────────────────── */
-#main {
-  flex: 1; overflow-y: auto; background: #f0f0f0;
-  display: flex; flex-direction: column;
-}
-
-/* ── Panels ──────────────────────────────────────────────────────────────── */
-.panel { display: none; flex-direction: column; flex: 1; }
-.panel.active { display: flex; }
-
-/* ── Home panel ──────────────────────────────────────────────────────────── */
-#home-panel {
-  align-items: center; justify-content: flex-start;
-  padding: 40px 40px 0;
-}
-.home-heading { font-size: 1.6rem; font-weight: 600; color: #1a1a1a; margin-bottom: 32px; }
-.home-content {
-  width: 100%; max-width: 760px; background: white; border-radius: 12px;
-  border: 1px solid #e0e0e0; padding: 36px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
-}
-.home-content h2 { font-size: 1rem; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
-.home-content p  { font-size: 0.875rem; color: #555; line-height: 1.6; }
-.home-action-btn {
-  margin-top: 20px; display: inline-flex; align-items: center; gap: 8px;
-  background: #009688; color: white; padding: 10px 20px; border-radius: 8px;
-  font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none;
-  transition: background .15s;
-}
-.home-action-btn:hover { background: #00796b; }
-
-/* ── Create wizard panel ─────────────────────────────────────────────────── */
-#create-panel { padding: 0; }
-.create-header {
-  background: white; border-bottom: 1px solid #e0e0e0;
-  padding: 18px 32px; display: flex; align-items: center; gap: 16px;
-  flex-shrink: 0;
-}
-.create-header h1 { font-size: 1.05rem; font-weight: 600; color: #1a1a1a; }
-.create-header p  { font-size: 0.8rem; color: #777; margin-top: 2px; }
-.create-body { flex: 1; overflow-y: auto; padding: 24px 32px; }
-
-/* ── Step indicator ───────────────────────────────────────────────────────── */
-.steps { display: flex; align-items: center; gap: 0; margin-bottom: 24px; }
-.step {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 0.8rem; font-weight: 500; color: #aaa;
-}
-.step.active { color: #009688; }
-.step.done   { color: #009688; }
-.step-num {
-  width: 26px; height: 26px; border-radius: 50%; border: 2px solid #ddd;
-  display: flex; align-items: center; justify-content: center; font-size: 0.78rem;
-  font-weight: 600; background: white; flex-shrink: 0; color: #aaa;
-}
-.step.active .step-num { border-color: #009688; color: #009688; background: #e8f5f3; }
-.step.done   .step-num { border-color: #009688; background: #009688; color: white; }
-.step-line { flex: 1; height: 1px; background: #e0e0e0; margin: 0 10px; min-width: 30px; }
-.step-line.done { background: #009688; }
-
-/* ── Cards ───────────────────────────────────────────────────────────────── */
+/* ── Card ────────────────────────────────────────────────────────────────── */
 .card {
-  background: white; border: 1px solid #e0e0e0; border-radius: 10px;
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
   padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .card-title {
-  font-size: 0.78rem; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: #888; margin-bottom: 14px;
-  padding-bottom: 8px; border-bottom: 1px solid #f0f0f0;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #999; padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0; margin-bottom: 16px;
 }
 
-/* ── Tabs ────────────────────────────────────────────────────────────────── */
-.tab-row { display: flex; border-bottom: 1px solid #e0e0e0; margin-bottom: 16px; }
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.tab-row { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 16px; gap: 0; }
 .tab-btn {
-  padding: 9px 18px; font-size: 0.85rem; cursor: pointer; border: none;
+  padding: 8px 18px; font-size: 0.85rem; cursor: pointer; border: none;
   background: transparent; border-bottom: 3px solid transparent;
-  color: #777; font-weight: 500; transition: all .15s;
+  color: #888; font-weight: 500; transition: all .15s; font-family: inherit;
 }
 .tab-btn.active { border-bottom-color: #009688; color: #009688; }
-.tab-btn:hover:not(.active) { color: #333; background: #f9f9f9; }
-
-/* ── Fields ──────────────────────────────────────────────────────────────── */
-.field-label {
-  font-size: 0.8rem; font-weight: 500; color: #444; margin-bottom: 4px;
-}
-.field-input {
-  width: 100%; border: 1px solid #d0d0d0; border-radius: 6px;
-  padding: 7px 10px; font-size: 0.85rem; outline: none;
-  transition: border-color .15s; font-family: inherit; color: #222;
-  background: white;
-}
-.field-input:focus { border-color: #009688; box-shadow: 0 0 0 3px rgba(0,150,136,.12); }
-select.field-input { cursor: pointer; }
-textarea.field-input { resize: vertical; min-height: 110px; }
-.ai-hint { font-size: 0.7rem; color: #b0b0b0; font-style: italic; margin-top: 3px; }
+.tab-btn:hover:not(.active) { color: #444; background: #fafafa; }
 
 /* ── Drop zone ────────────────────────────────────────────────────────────── */
 .drop-zone {
-  border: 2px dashed #ccc; border-radius: 10px; padding: 32px 20px;
-  text-align: center; cursor: pointer; transition: all .15s;
-  background: #fafafa;
+  border: 2px dashed #d0d0d0; border-radius: 10px; padding: 30px 20px;
+  text-align: center; cursor: pointer; transition: all .15s; background: #fafafa;
 }
-.drop-zone:hover, .drop-zone.drag-over {
-  border-color: #009688; background: #f0faf9;
-}
+.drop-zone:hover, .drop-zone.drag-over { border-color: #009688; background: #f0faf9; }
 
-/* ── PM card ─────────────────────────────────────────────────────────────── */
+/* ── Field styles ─────────────────────────────────────────────────────────── */
+.field-label { font-size: 0.8rem; font-weight: 500; color: #444; margin-bottom: 4px; }
+.field-req   { color: #dc2626; }
+.field-input {
+  width: 100%; border: 1px solid #d0d0d0; border-radius: 7px;
+  padding: 7px 10px; font-size: 0.85rem; outline: none; font-family: inherit;
+  color: #222; background: white; transition: border-color .15s;
+}
+.field-input:focus { border-color: #009688; box-shadow: 0 0 0 3px rgba(0,150,136,.1); }
+select.field-input { cursor: pointer; }
+textarea.field-input { resize: vertical; min-height: 100px; }
+.ai-hint { font-size: 0.7rem; color: #bbb; font-style: italic; margin-top: 3px; display: block; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: #009688; color: #fff; border: none; border-radius: 7px;
+  padding: 10px 22px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  transition: background .15s; font-family: inherit;
+}
+.btn-primary:hover    { background: #00796b; }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-secondary {
+  background: #fff; color: #555; border: 1px solid #d0d0d0; border-radius: 7px;
+  padding: 10px 22px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
+  transition: all .15s; font-family: inherit;
+}
+.btn-secondary:hover { background: #f5f5f5; }
+.btn-discard {
+  background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 7px;
+  padding: 10px 22px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
+  transition: all .15s; font-family: inherit;
+}
+.btn-discard:hover { background: #fef2f2; }
+
+/* ── Generate button row ──────────────────────────────────────────────────── */
+.gen-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.gen-row .btn-primary { flex: 1; padding: 11px; }
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Metrics row ─────────────────────────────────────────────────────────── */
+.metrics-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+.metric-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+  padding: 14px 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.metric-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .07em; color: #aaa; margin-bottom: 5px; }
+.metric-val   { font-size: 0.9rem; font-weight: 600; color: #222; }
+.metric-val.lg { font-size: 1.8rem; font-weight: 700; color: #009688; }
+
+/* ── PM card ──────────────────────────────────────────────────────────────── */
 .pm-card {
-  background: white; border: 1px solid #e0e0e0; border-left: 4px solid #009688;
-  border-radius: 10px; padding: 20px 22px; margin-bottom: 16px;
+  background: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #009688;
+  border-radius: 10px; padding: 22px 24px; margin-bottom: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
-.pm-card.discarded { border-left-color: #ef4444; opacity: .7; }
 .pm-card.created   { border-left-color: #22c55e; }
+.pm-card.discarded { border-left-color: #ef4444; opacity: .7; }
+
+/* ── Section divider ──────────────────────────────────────────────────────── */
+.sec-div {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #bbb; margin: 16px 0 10px;
+  padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;
+}
 
 /* ── Priority badges ──────────────────────────────────────────────────────── */
 .badge { display: inline-flex; align-items: center; padding: 2px 10px;
@@ -203,496 +160,246 @@ textarea.field-input { resize: vertical; min-height: 110px; }
 .badge-high   { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
 .badge-medium { background:#fffbeb; color:#d97706; border:1px solid #fde68a; }
 .badge-low    { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
-.badge-teal   { background:#e8f5f3; color:#009688; border:1px solid #b2dfdb; }
-
-/* ── Action buttons ───────────────────────────────────────────────────────── */
-.btn-primary {
-  background: #009688; color: white; border: none; border-radius: 7px;
-  padding: 9px 20px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
-  transition: background .15s; font-family: inherit;
-}
-.btn-primary:hover { background: #00796b; }
-.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-.btn-outline {
-  background: white; color: #555; border: 1px solid #d0d0d0; border-radius: 7px;
-  padding: 9px 20px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
-  transition: all .15s; font-family: inherit;
-}
-.btn-outline:hover { background: #f5f5f5; border-color: #aaa; }
-
-/* ── Spinner ─────────────────────────────────────────────────────────────── */
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Section divider ──────────────────────────────────────────────────────── */
-.sec-div {
-  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #999; margin: 16px 0 10px;
-  padding-bottom: 5px; border-bottom: 1px solid #efefef;
-}
 
 /* ── Char bar ─────────────────────────────────────────────────────────────── */
 .char-bar-wrap { height: 4px; background: #f0f0f0; border-radius: 2px; margin-top: 4px; overflow: hidden; }
 .char-bar { height: 100%; border-radius: 2px; transition: width .3s, background .3s; }
+
+/* ── Info / warning banners ───────────────────────────────────────────────── */
+.banner-blue   { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#1e40af; margin-bottom:12px; }
+.banner-amber  { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#92400e; margin-bottom:12px; }
+.banner-red    { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+.banner-teal   { background:#f0faf9; border:1px solid #b2dfdb; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#00695c; margin-bottom:12px; }
+
+/* ── Review summary ───────────────────────────────────────────────────────── */
+.summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+.summary-cell { border-radius: 8px; padding: 14px; text-align: center; }
+.sum-created   { background:#f0faf9; }
+.sum-discarded { background:#fef2f2; }
+.sum-pending   { background:#fffbeb; }
+.sum-num { font-size: 1.8rem; font-weight: 700; }
+.sum-lbl { font-size: 0.75rem; margin-top: 2px; font-weight: 500; }
 </style>
 </head>
 <body>
 
 <!-- ══ TOP BAR ══════════════════════════════════════════════════════════════ -->
 <div id="topbar">
-  <!-- Siemens logo -->
-  <svg width="96" height="20" viewBox="0 0 96 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
-    <text x="0" y="16" font-family="Inter,Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="3" fill="#000">SIEMENS</text>
-  </svg>
-  <span class="org-name">Frank's green mountain coffee</span>
-  <div class="top-search">
-    <svg width="15" height="15" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-    </svg>
-    <input type="text" placeholder="Search">
+  <span class="siemens-wordmark">SIEMENS</span>
+  <div class="topbar-divider"></div>
+  <span class="topbar-title">Maintenance Management</span>
+  <div class="topbar-badge">
+    <span class="badge-ticket">AR-952</span>
+    <span class="badge-proto">Prototype</span>
+    <div id="api-settings-btn" onclick="toggleApiPanel()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      <span id="api-btn-label">API Key</span>
+    </div>
   </div>
 </div>
 
-<!-- ══ BODY ═════════════════════════════════════════════════════════════════ -->
-<div id="body-wrap">
+<!-- ── API key panel (hidden by default) ─────────────────────────────────── -->
+<div id="api-settings-panel">
+  <svg width="14" height="14" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24">
+    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+  </svg>
+  <span style="font-size:0.82rem;color:#92400e;font-weight:500">Claude API Key</span>
+  <input id="api-key" type="password" placeholder="sk-ant-api03-…" oninput="updateGenBtn()">
+  <span id="key-status" style="font-size:0.75rem;color:#aaa">
+    Stays in this browser tab only — never stored or sent anywhere except Anthropic.
+  </span>
+  <a href="https://console.anthropic.com/api-keys" target="_blank"
+    style="font-size:0.75rem;color:#009688;text-decoration:none;margin-left:auto;white-space:nowrap">
+    Get a key →
+  </a>
+</div>
 
-  <!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
-  <nav id="sidebar">
+<!-- ══ PAGE ═════════════════════════════════════════════════════════════════ -->
+<div class="page-wrap">
 
-    <!-- Collapse toggle -->
-    <div id="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M15 18l-6-6 6-6"/>
-      </svg>
+  <!-- Page header -->
+  <div class="page-header">
+    <h1>AI PM Schedule Generator</h1>
+    <p>Upload a maintenance document — AI reads it and pre-fills all 10 MMM PM Creation Form fields for review.</p>
+    <div class="doc-pills">
+      <span class="doc-pill pill-teal">✅ OEM Manuals</span>
+      <span class="doc-pill pill-teal">✅ Maintenance SOPs</span>
+      <span class="doc-pill pill-teal">✅ FDA / GMP Compliance SOPs</span>
+      <span class="doc-pill pill-amber">⚠️ Frequency Gap Detection</span>
+    </div>
+  </div>
+
+  <!-- ── Input card ── -->
+  <div class="card">
+    <div class="card-title">Document Source</div>
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-pdf"  onclick="switchTab('pdf')">📄 PDF Upload</button>
+      <button class="tab-btn"        id="tab-text" onclick="switchTab('text')">🎙️ Voice / Text</button>
     </div>
 
-    <!-- Let's get started pill -->
-    <div class="started-pill" onclick="goHome()">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.82m5.84-2.56a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.82m2.56-5.84a14.98 14.98 0 00-12.12 6.16m0 0L3 12m0 0l4-4m-4 4l4 4"/>
-      </svg>
-      <span class="nav-label">Let's get started!</span>
+    <!-- PDF panel -->
+    <div id="panel-pdf">
+      <div class="drop-zone" id="drop-zone"
+        onclick="document.getElementById('file-input').click()"
+        ondragover="dzEv(event,'add')" ondragleave="dzEv(event,'remove')" ondrop="handleDrop(event)">
+        <div style="font-size:2.2rem;margin-bottom:8px">📁</div>
+        <p style="font-size:0.875rem;font-weight:500;color:#444">Click to upload or drag &amp; drop a PDF</p>
+        <p style="font-size:0.75rem;color:#bbb;margin-top:4px">OEM manuals · Maintenance SOPs · FDA/GMP compliance SOPs · max 10 MB</p>
+      </div>
+      <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event.target.files[0])">
+      <div id="file-info" style="display:none;margin-top:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:8px;padding:9px 14px;font-size:0.82rem;color:#00695c"></div>
+      <details id="pdf-preview" style="display:none;margin-top:6px">
+        <summary style="font-size:0.72rem;color:#bbb;cursor:pointer">Preview extracted text</summary>
+        <pre id="pdf-text-pre" style="margin-top:6px;font-size:0.7rem;color:#777;background:#f9f9f9;border-radius:7px;padding:10px;max-height:110px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></pre>
+      </details>
     </div>
 
-    <!-- Create -->
-    <div class="create-btn" onclick="goCreate()" id="nav-create">
-      <div class="create-circle">
-        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path d="M12 5v14M5 12h14"/>
+    <!-- Text panel -->
+    <div id="panel-text" style="display:none">
+      <div style="margin-bottom:10px">
+        <div class="field-label">Voice transcript or maintenance description</div>
+        <textarea id="text-input" class="field-input" rows="6"
+          placeholder="Example: We need a monthly HVAC inspection on the 1st of each month — check filters, lubricate bearings, inspect belts, verify thermostat calibration..."></textarea>
+      </div>
+      <div>
+        <div class="field-label">Source label <span style="color:#bbb;font-weight:400">(optional)</span></div>
+        <input id="source-label" type="text" class="field-input" value="Voice Input">
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <div class="gen-row" style="margin-top:16px">
+      <button id="gen-btn" class="btn-primary" onclick="generate()" disabled>
+        🚀 Generate PM Schedules
+      </button>
+    </div>
+
+    <!-- No-key warning -->
+    <div id="no-key-warn" style="display:none;margin-top:10px" class="banner-amber">
+      ⚠️ No API key set — click <strong>API Key</strong> in the top-right to add yours.
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" style="display:none;margin-top:14px;text-align:center">
+      <div style="display:inline-flex;align-items:center;gap:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:12px 20px">
+        <svg class="spin" style="width:18px;height:18px;color:#009688" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
+          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
         </svg>
+        <span id="loading-text" style="font-size:0.85rem;color:#00695c;font-weight:500">Analysing document…</span>
       </div>
-      <span class="nav-label">Create</span>
     </div>
+  </div>
 
-    <!-- Nav items -->
-    <div class="nav-item active" id="nav-home" onclick="goHome()">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/>
-        <path d="M9 21V12h6v9"/>
-      </svg>
-      <span class="nav-label">Home</span>
-    </div>
+  <!-- ── Results (hidden until generated) ── -->
+  <div id="results" style="display:none">
 
-    <div class="nav-item" id="nav-work" onclick="goNav('work')">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-        <rect x="9" y="3" width="6" height="4" rx="1"/>
-        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
-      </svg>
-      <span class="nav-label">Work</span>
-    </div>
-
-    <div class="nav-item" id="nav-plan" onclick="goNav('plan')">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-        <line x1="8" y1="14" x2="8" y2="14" stroke-linecap="round" stroke-width="2.5"/>
-        <line x1="12" y1="14" x2="12" y2="14" stroke-linecap="round" stroke-width="2.5"/>
-        <line x1="8" y1="18" x2="8" y2="18" stroke-linecap="round" stroke-width="2.5"/>
-      </svg>
-      <span class="nav-label">Plan</span>
-    </div>
-
-    <div class="nav-item" id="nav-manage" onclick="goNav('manage')">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path d="M9 11l3 3L22 4"/>
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-      </svg>
-      <span class="nav-label">Manage</span>
-      <svg style="margin-left:auto" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M6 9l6 6 6-6"/>
-      </svg>
-    </div>
-
-    <div class="nav-item" id="nav-catalog" onclick="goNav('catalog')">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-      </svg>
-      <span class="nav-label">Catalog</span>
-      <svg style="margin-left:auto" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M6 9l6 6 6-6"/>
-      </svg>
-    </div>
-
-    <div class="nav-item" id="nav-analyze" onclick="goNav('analyze')">
-      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <line x1="18" y1="20" x2="18" y2="10"/>
-        <line x1="12" y1="20" x2="12" y2="4"/>
-        <line x1="6"  y1="20" x2="6"  y2="14"/>
-      </svg>
-      <span class="nav-label">Analyze</span>
-    </div>
-
-  </nav>
-
-  <!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
-  <div id="main">
-
-    <!-- ░░ HOME PANEL ░░ -->
-    <div class="panel active" id="home-panel">
-      <div style="padding:40px 40px 0">
-        <h1 class="home-heading">Hi Frank! Let's get to work</h1>
-        <div class="home-content">
-          <div style="display:flex;align-items:flex-start;gap:14px">
-            <div style="font-size:2rem;flex-shrink:0">🔧</div>
-            <div>
-              <h2>AI PM Schedule Generator <span class="badge badge-teal" style="font-size:0.68rem;vertical-align:middle;margin-left:6px">AR-952 Prototype</span></h2>
-              <p style="margin-top:8px">Upload an equipment manual or maintenance SOP — AI reads it and pre-fills all <strong>10 PM Creation Form fields</strong> for you. Supports OEM manuals, internal SOPs, and <strong>FDA / GMP compliance SOPs</strong>.</p>
-              <button class="home-action-btn" onclick="goCreate()">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14"/>
-                </svg>
-                Create PM Schedule
-              </button>
-            </div>
-          </div>
-          <hr style="margin:24px 0;border:none;border-top:1px solid #eee">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-            <div style="background:#f9f9f9;border-radius:8px;padding:14px">
-              <div style="font-size:1.3rem;margin-bottom:6px">📄</div>
-              <p style="font-size:0.8rem;font-weight:600;color:#333;margin-bottom:3px">OEM Manuals</p>
-              <p style="font-size:0.75rem;color:#777">Explicit calendar frequencies extracted automatically</p>
-            </div>
-            <div style="background:#f9f9f9;border-radius:8px;padding:14px">
-              <div style="font-size:1.3rem;margin-bottom:6px">📋</div>
-              <p style="font-size:0.8rem;font-weight:600;color:#333;margin-bottom:3px">Maintenance SOPs</p>
-              <p style="font-size:0.75rem;color:#777">Internal procedures with frequency-gap detection</p>
-            </div>
-            <div style="background:#f9f9f9;border-radius:8px;padding:14px">
-              <div style="font-size:1.3rem;margin-bottom:6px">⚖️</div>
-              <p style="font-size:0.8rem;font-weight:600;color:#333;margin-bottom:3px">FDA / GMP SOPs</p>
-              <p style="font-size:0.75rem;color:#777">Compliance SOPs generate 2–5 PMs with regulatory notes</p>
-            </div>
-          </div>
-        </div>
+    <!-- Metrics -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-label">Document Type</div>
+        <div id="r-type" class="metric-val"></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">AI Confidence</div>
+        <div id="r-conf" class="metric-val"></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PMs Generated</div>
+        <div id="r-count" class="metric-val lg"></div>
       </div>
     </div>
 
-    <!-- ░░ CREATE PANEL ░░ -->
-    <div class="panel" id="create-panel">
+    <div id="r-reason"     style="display:none" class="banner-blue"></div>
+    <div id="r-compliance" style="display:none" class="banner-amber"></div>
 
-      <!-- Header -->
-      <div class="create-header">
-        <button class="btn-outline" style="padding:6px 12px;font-size:0.8rem" onclick="goHome()">← Back</button>
-        <div>
-          <h1>Create PM Schedule</h1>
-          <p>AI-assisted — AR-952 · Epic AR-121</p>
+    <!-- Zero PM -->
+    <div id="r-zero" style="display:none" class="banner-red">
+      <h3 style="font-weight:700;color:#dc2626;font-size:0.95rem;margin-bottom:6px">❌ No PM Schedule Could Be Generated</h3>
+      <p id="r-zero-reason" style="font-size:0.82rem;color:#b91c1c;margin-bottom:12px"></p>
+      <div style="background:white;border-radius:8px;border:1px solid #fecaca;padding:12px;font-size:0.82rem;color:#555">
+        <p style="font-weight:600;color:#333;margin-bottom:5px">Documents that DO generate PM schedules:</p>
+        <ul style="list-style:disc;padding-left:16px;color:#666;line-height:1.8">
+          <li>OEM equipment manuals (Trane, Carrier, Caterpillar, etc.)</li>
+          <li>Preventive maintenance SOPs with scheduled / periodic tasks</li>
+          <li>FDA / GMP / compliance SOPs with a PM Program section</li>
+          <li>Any document referencing periodic or scheduled maintenance</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PM form cards -->
+    <div id="pm-forms"></div>
+
+    <!-- Review summary -->
+    <div id="review-summary" style="display:none" class="card">
+      <div class="card-title">Review Summary</div>
+      <div class="summary-grid">
+        <div class="summary-cell sum-created">
+          <div id="s-created"   class="sum-num" style="color:#009688">0</div>
+          <div class="sum-lbl"  style="color:#009688">✅ Created</div>
+        </div>
+        <div class="summary-cell sum-discarded">
+          <div id="s-discarded" class="sum-num" style="color:#dc2626">0</div>
+          <div class="sum-lbl"  style="color:#dc2626">🗑️ Discarded</div>
+        </div>
+        <div class="summary-cell sum-pending">
+          <div id="s-pending"   class="sum-num" style="color:#d97706">0</div>
+          <div class="sum-lbl"  style="color:#d97706">🟡 Pending</div>
         </div>
       </div>
-
-      <!-- Body -->
-      <div class="create-body">
-
-        <!-- Step indicator -->
-        <div class="steps">
-          <div class="step active" id="step1-ind">
-            <div class="step-num" id="s1num">1</div>
-            <span>Upload &amp; Generate</span>
-          </div>
-          <div class="step-line" id="line12"></div>
-          <div class="step" id="step2-ind">
-            <div class="step-num" id="s2num">2</div>
-            <span>Review PMs</span>
-          </div>
-          <div class="step-line" id="line23"></div>
-          <div class="step" id="step3-ind">
-            <div class="step-num" id="s3num">3</div>
-            <span>Summary</span>
-          </div>
-        </div>
-
-        <!-- ── STEP 1: Upload ── -->
-        <div id="step1">
-
-          <!-- Input tabs -->
-          <div class="card">
-            <div class="card-title">Document Source</div>
-            <div class="tab-row">
-              <button class="tab-btn active" id="tab-pdf"  onclick="switchTab('pdf')">📄 PDF Upload</button>
-              <button class="tab-btn"        id="tab-text" onclick="switchTab('text')">🎙️ Voice / Text</button>
-            </div>
-
-            <!-- PDF panel -->
-            <div id="panel-pdf">
-              <div class="drop-zone" id="drop-zone"
-                onclick="document.getElementById('file-input').click()"
-                ondragover="dzEvent(event,'add')"
-                ondragleave="dzEvent(event,'remove')"
-                ondrop="handleDrop(event)">
-                <div style="font-size:2rem;margin-bottom:8px">📁</div>
-                <p style="font-size:0.875rem;font-weight:500;color:#444">Click to upload or drag &amp; drop a PDF</p>
-                <p style="font-size:0.75rem;color:#aaa;margin-top:4px">OEM manuals · Maintenance SOPs · FDA/GMP compliance SOPs · max 10 MB</p>
-              </div>
-              <input type="file" id="file-input" accept=".pdf" class="hidden" style="display:none" onchange="handleFile(event.target.files[0])">
-              <div id="file-info" style="display:none;margin-top:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#00695c"></div>
-              <details id="pdf-preview" style="display:none;margin-top:8px">
-                <summary style="font-size:0.75rem;color:#aaa;cursor:pointer">Preview extracted text</summary>
-                <pre id="pdf-text-pre" style="margin-top:6px;font-size:0.72rem;color:#666;background:#f9f9f9;border-radius:8px;padding:12px;max-height:120px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></pre>
-              </details>
-            </div>
-
-            <!-- Text panel -->
-            <div id="panel-text" style="display:none">
-              <div style="margin-bottom:10px">
-                <div class="field-label">Voice transcript or maintenance description</div>
-                <textarea id="text-input" class="field-input" rows="6"
-                  placeholder="Example: We need a monthly HVAC inspection on the 1st of each month. Tasks include checking filters, lubricating fan bearings, inspecting belts, verifying thermostat calibration..."></textarea>
-              </div>
-              <div>
-                <div class="field-label">Source label <span style="color:#aaa;font-weight:400">(optional)</span></div>
-                <input id="source-label" type="text" class="field-input" value="Voice Input" placeholder="e.g. Site Manager verbal briefing">
-              </div>
-            </div>
-          </div>
-
-          <!-- API Key -->
-          <div class="card">
-            <div class="card-title">Claude AI · API Key</div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-              <div class="field-label" style="margin-bottom:0">Your Anthropic API Key</div>
-              <a href="https://console.anthropic.com/api-keys" target="_blank" style="font-size:0.75rem;color:#009688;text-decoration:none">Get a key →</a>
-            </div>
-            <input id="api-key" type="password" class="field-input" style="font-family:monospace"
-              placeholder="sk-ant-api03-…" oninput="updateGenBtn()">
-            <p id="key-hint" style="font-size:0.72rem;color:#bbb;margin-top:5px">
-              Stays in this browser tab only — never stored or sent anywhere except the Anthropic API.
-            </p>
-          </div>
-
-          <!-- Generate -->
-          <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
-            <button id="gen-btn" class="btn-primary" onclick="generate()" disabled style="flex:1;padding:11px">
-              🚀 Generate PM Schedules with AI
-            </button>
-          </div>
-
-          <!-- Loading -->
-          <div id="loading" style="display:none;text-align:center;padding:16px 0">
-            <div style="display:inline-flex;align-items:center;gap:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:12px 20px">
-              <svg class="spin" style="width:20px;height:20px;color:#009688" fill="none" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".25"/>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".75"/>
-              </svg>
-              <span id="loading-text" style="font-size:0.875rem;color:#00695c;font-weight:500">Analysing document…</span>
-            </div>
-          </div>
-
-        </div><!-- /step1 -->
-
-        <!-- ── STEP 2: Review PMs ── -->
-        <div id="step2" style="display:none">
-          <!-- Metrics bar -->
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-            <div class="card" style="padding:14px;text-align:center;margin-bottom:0">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:#aaa;margin-bottom:4px">Document Type</div>
-              <div id="r-type" style="font-size:0.85rem;font-weight:600;color:#222"></div>
-            </div>
-            <div class="card" style="padding:14px;text-align:center;margin-bottom:0">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:#aaa;margin-bottom:4px">AI Confidence</div>
-              <div id="r-conf" style="font-size:0.85rem;font-weight:600;color:#222"></div>
-            </div>
-            <div class="card" style="padding:14px;text-align:center;margin-bottom:0">
-              <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:#aaa;margin-bottom:4px">PMs Generated</div>
-              <div id="r-count" style="font-size:1.6rem;font-weight:700;color:#009688"></div>
-            </div>
-          </div>
-
-          <div id="r-reason"     style="display:none" class="card" style="background:#f0f7ff;border-color:#bfdbfe;margin-bottom:16px"></div>
-          <div id="r-compliance" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:16px;font-size:0.85rem;color:#92400e"></div>
-
-          <!-- Zero PM -->
-          <div id="r-zero" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:20px;margin-bottom:16px">
-            <h3 style="font-weight:700;color:#dc2626;margin-bottom:6px">❌ No PM Schedule Could Be Generated</h3>
-            <p id="r-zero-reason" style="font-size:0.85rem;color:#b91c1c;margin-bottom:12px"></p>
-            <div style="background:white;border-radius:8px;border:1px solid #fecaca;padding:14px;font-size:0.85rem;color:#555">
-              <p style="font-weight:600;color:#333;margin-bottom:6px">Documents that DO generate PM schedules:</p>
-              <ul style="list-style:disc;padding-left:18px;line-height:1.8;color:#666">
-                <li>OEM equipment manuals (Trane, Carrier, Caterpillar, etc.)</li>
-                <li>Preventive maintenance SOPs with scheduled or periodic tasks</li>
-                <li>FDA / GMP / compliance SOPs with a PM Program section</li>
-                <li>Any document referencing periodic or scheduled maintenance</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- PM form cards -->
-          <div id="pm-forms"></div>
-
-          <div style="display:flex;gap:10px;margin-top:4px">
-            <button class="btn-outline" onclick="backToStep1()">← Re-upload</button>
-            <button class="btn-primary" onclick="goStep3()" id="done-btn" style="flex:1">
-              Done — View Summary →
-            </button>
-          </div>
-        </div><!-- /step2 -->
-
-        <!-- ── STEP 3: Summary ── -->
-        <div id="step3" style="display:none">
-          <div class="card">
-            <div class="card-title">Session Summary</div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-              <div style="background:#f0faf9;border-radius:8px;padding:14px;text-align:center">
-                <div id="s-created"   style="font-size:2rem;font-weight:700;color:#009688">0</div>
-                <div style="font-size:0.78rem;color:#009688;margin-top:2px">✅ Created</div>
-              </div>
-              <div style="background:#fef2f2;border-radius:8px;padding:14px;text-align:center">
-                <div id="s-discarded" style="font-size:2rem;font-weight:700;color:#dc2626">0</div>
-                <div style="font-size:0.78rem;color:#dc2626;margin-top:2px">🗑️ Discarded</div>
-              </div>
-              <div style="background:#fffbeb;border-radius:8px;padding:14px;text-align:center">
-                <div id="s-pending"   style="font-size:2rem;font-weight:700;color:#d97706">0</div>
-                <div style="font-size:0.78rem;color:#d97706;margin-top:2px">🟡 Pending</div>
-              </div>
-            </div>
-            <div style="display:flex;gap:10px">
-              <button class="btn-outline" onclick="exportJSON()" style="flex:1">⬇️ Download JSON</button>
-              <button class="btn-outline" onclick="exportText()" style="flex:1">⬇️ Download Text</button>
-            </div>
-          </div>
-          <div style="background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:16px;font-size:0.85rem;color:#00695c;margin-top:4px">
-            <strong>Next step:</strong> Go to MMM → select the asset(s) for each created PM, then activate the schedule.
-          </div>
-          <div style="margin-top:14px;display:flex;gap:10px">
-            <button class="btn-outline" onclick="backToStep1()">+ Create Another</button>
-            <button class="btn-primary" onclick="goHome()" style="flex:1">Back to Home</button>
-          </div>
-        </div><!-- /step3 -->
-
-      </div><!-- /create-body -->
-    </div><!-- /create-panel -->
-
-    <!-- ░░ PLACEHOLDER PANELS ░░ -->
-    <div class="panel" id="work-panel">
-      <div style="padding:40px"><h1 style="font-size:1.4rem;color:#333">Work</h1><p style="color:#888;margin-top:8px;font-size:0.9rem">Home page</p></div>
-    </div>
-    <div class="panel" id="plan-panel">
-      <div style="padding:40px"><h1 style="font-size:1.4rem;color:#333">Plan</h1><p style="color:#888;margin-top:8px;font-size:0.9rem">Home page</p></div>
-    </div>
-    <div class="panel" id="manage-panel">
-      <div style="padding:40px"><h1 style="font-size:1.4rem;color:#333">Manage</h1><p style="color:#888;margin-top:8px;font-size:0.9rem">Home page</p></div>
-    </div>
-    <div class="panel" id="catalog-panel">
-      <div style="padding:40px"><h1 style="font-size:1.4rem;color:#333">Catalog</h1><p style="color:#888;margin-top:8px;font-size:0.9rem">Home page</p></div>
-    </div>
-    <div class="panel" id="analyze-panel">
-      <div style="padding:40px"><h1 style="font-size:1.4rem;color:#333">Analyze</h1><p style="color:#888;margin-top:8px;font-size:0.9rem">Home page</p></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-secondary" onclick="exportJSON()" style="flex:1">⬇️ Download JSON</button>
+        <button class="btn-secondary" onclick="exportText()" style="flex:1">⬇️ Download Text</button>
+      </div>
     </div>
 
-  </div><!-- /main -->
-</div><!-- /body-wrap -->
+  </div><!-- /results -->
+
+</div><!-- /page-wrap -->
 
 <!-- ══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════════════════════════════════ -->
 <script>
-
-// ── PDF.js worker ──────────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const CATS = ['Calibration','Cleaning/Sanitation','Compliance','Inspection','Other','Preventive Maintenance','Process Improvement','Projects','Safety'];
+const CATS = ['Calibration','Cleaning/Sanitation','Compliance','Inspection','Other',
+              'Preventive Maintenance','Process Improvement','Projects','Safety'];
 const PRIS = ['High','Medium','Low'];
 
-// ── State ──────────────────────────────────────────────────────────────────
-let sidebarCollapsed = false;
 let activeTab = 'pdf';
 let pdfContent = '';
-let pdfName = '';
-let apiResult = null;
-let pmStates = {};
+let pdfName    = '';
+let apiResult  = null;
+let pmStates   = {};
 
-// ── Navigation ─────────────────────────────────────────────────────────────
-function showPanel(name) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(name + '-panel').classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const ni = document.getElementById('nav-' + name);
-  if (ni) ni.classList.add('active');
+// ── API panel toggle ───────────────────────────────────────────────────────
+let apiPanelOpen = false;
+function toggleApiPanel() {
+  apiPanelOpen = !apiPanelOpen;
+  const p = document.getElementById('api-settings-panel');
+  p.style.display = apiPanelOpen ? 'flex' : 'none';
+  document.getElementById('api-btn-label').textContent = apiPanelOpen ? 'Close ✕' : 'API Key';
+  if (apiPanelOpen) setTimeout(() => document.getElementById('api-key').focus(), 50);
 }
 
-function goHome()   { showPanel('home'); }
-function goCreate() { showPanel('create'); goStep1(); }
-function goNav(n)   { showPanel(n); }
-
-function toggleSidebar() {
-  sidebarCollapsed = !sidebarCollapsed;
-  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
-}
-
-// ── Step management ────────────────────────────────────────────────────────
-function goStep1() {
-  document.getElementById('step1').style.display = '';
-  document.getElementById('step2').style.display = 'none';
-  document.getElementById('step3').style.display = 'none';
-  setStepState(1);
-}
-function goStep2() {
-  document.getElementById('step1').style.display = 'none';
-  document.getElementById('step2').style.display = '';
-  document.getElementById('step3').style.display = 'none';
-  setStepState(2);
-  document.getElementById('create-body').scrollTop = 0;
-}
-function goStep3() {
-  document.getElementById('step1').style.display = 'none';
-  document.getElementById('step2').style.display = 'none';
-  document.getElementById('step3').style.display = '';
-  setStepState(3);
-  updateSummaryPanel();
-  document.getElementById('create-body').scrollTop = 0;
-}
-function backToStep1() { goStep1(); }
-
-function setStepState(active) {
-  [1,2,3].forEach(i => {
-    const s = document.getElementById('step'+i+'-ind');
-    const n = document.getElementById('s'+i+'num');
-    s.className = 'step' + (i < active ? ' done' : i === active ? ' active' : '');
-    if (i < active) n.innerHTML = '✓';
-    else n.textContent = i;
-  });
-  ['line12','line23'].forEach((id,idx) => {
-    document.getElementById(id).className = 'step-line' + (active > idx+1 ? ' done' : '');
-  });
-}
-
-// ── Tabs ───────────────────────────────────────────────────────────────────
+// ── Tab switch ─────────────────────────────────────────────────────────────
 function switchTab(t) {
   activeTab = t;
   ['pdf','text'].forEach(x => {
-    document.getElementById('tab-'+x).className = 'tab-btn' + (x===t ? ' active' : '');
+    document.getElementById('tab-'+x).className = 'tab-btn' + (x===t?' active':'');
     document.getElementById('panel-'+x).style.display = x===t ? '' : 'none';
   });
   updateGenBtn();
 }
 
 // ── Drag helpers ───────────────────────────────────────────────────────────
-function dzEvent(e, action) {
-  e.preventDefault();
-  document.getElementById('drop-zone').classList[action]('drag-over');
-}
+function dzEv(e, action) { e.preventDefault(); document.getElementById('drop-zone').classList[action]('drag-over'); }
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('drop-zone').classList.remove('drag-over');
@@ -716,26 +423,28 @@ async function handleFile(file) {
       text += items.map(it => it.str).join(' ') + '\n';
     }
     pdfContent = text.trim();
-    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} chars extracted`;
+    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
     const prev = document.getElementById('pdf-preview');
     prev.style.display = '';
     document.getElementById('pdf-text-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'…':'');
   } catch(err) {
-    fi.textContent = '⚠️ Could not extract text — this may be a scanned / image-based PDF.';
+    fi.textContent = '⚠️ Could not extract text — may be a scanned / image-based PDF.';
     pdfContent = '';
   }
   updateGenBtn();
 }
 
-// ── Generate button state ─────────────────────────────────────────────────
+// ── Gen button state ───────────────────────────────────────────────────────
 function updateGenBtn() {
-  const key     = document.getElementById('api-key').value.trim();
+  const key     = (document.getElementById('api-key').value || '').trim();
   const hasPdf  = activeTab === 'pdf'  && pdfContent.length > 0;
   const hasText = activeTab === 'text' && document.getElementById('text-input').value.trim().length > 0;
-  document.getElementById('gen-btn').disabled = !key || (!hasPdf && !hasText);
-  const hint = document.getElementById('key-hint');
-  if (key.length > 10) hint.innerHTML = '✅ <span style="color:#009688">API key entered</span>';
-  else hint.innerHTML = 'Stays in this browser tab only — never stored or sent anywhere except the Anthropic API.';
+  const hasContent = hasPdf || hasText;
+  document.getElementById('gen-btn').disabled = !hasContent;
+  document.getElementById('no-key-warn').style.display = hasContent && !key ? '' : 'none';
+  const s = document.getElementById('key-status');
+  if (key.length > 10) s.innerHTML = '✅ <span style="color:#009688">Key entered</span>';
+  else s.textContent = 'Stays in this browser tab only — never stored or sent anywhere except Anthropic.';
 }
 
 // ── System prompt ──────────────────────────────────────────────────────────
@@ -811,12 +520,26 @@ Return ONLY valid JSON. No markdown. No explanation outside JSON.
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function generate() {
-  const apiKey  = document.getElementById('api-key').value.trim();
-  const content = activeTab === 'pdf' ? pdfContent : document.getElementById('text-input').value.trim();
-  const source  = activeTab === 'pdf' ? pdfName : (document.getElementById('source-label').value.trim()||'Voice Input');
+  const apiKey  = (document.getElementById('api-key').value || '').trim();
+  if (!apiKey) {
+    if (!apiPanelOpen) toggleApiPanel();
+    document.getElementById('api-key').focus();
+    document.getElementById('api-key').style.borderColor = '#dc2626';
+    setTimeout(() => document.getElementById('api-key').style.borderColor = '', 2000);
+    alert('Please enter your Claude API key first (top-right ⚙ API Key button).');
+    return;
+  }
+
+  const content = activeTab === 'pdf'
+    ? pdfContent
+    : document.getElementById('text-input').value.trim();
+  const source = activeTab === 'pdf'
+    ? pdfName
+    : (document.getElementById('source-label').value.trim() || 'Voice Input');
 
   document.getElementById('gen-btn').disabled = true;
   document.getElementById('loading').style.display = '';
+  document.getElementById('results').style.display = 'none';
 
   const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const now   = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
@@ -869,8 +592,7 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('gen-btn').disabled = false;
-    renderStep2();
-    goStep2();
+    renderResults();
 
   } catch(err) {
     document.getElementById('loading').style.display = 'none';
@@ -879,26 +601,24 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
   }
 }
 
-// ── Render step 2 ──────────────────────────────────────────────────────────
-function renderStep2() {
+// ── Render results ─────────────────────────────────────────────────────────
+function renderResults() {
   const r = apiResult;
-  const confEmoji = {High:'🟢',Medium:'🟡',Low:'🔴'};
+  document.getElementById('results').style.display = '';
+
+  const em = {High:'🟢',Medium:'🟡',Low:'🔴'};
   document.getElementById('r-type').textContent  = r.document_type  || '—';
-  document.getElementById('r-conf').textContent  = (confEmoji[r.ai_confidence]||'⚪') + ' ' + (r.ai_confidence||'—');
+  document.getElementById('r-conf').textContent  = (em[r.ai_confidence]||'⚪') + ' ' + (r.ai_confidence||'—');
   document.getElementById('r-count').textContent = r.pm_count ?? 0;
 
   const rr = document.getElementById('r-reason');
-  if (r.confidence_reason) {
-    rr.style.display = '';
-    rr.innerHTML = `<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;font-size:0.85rem;color:#1e40af">ℹ️ ${esc(r.confidence_reason)}</div>`;
-  } else { rr.style.display = 'none'; }
+  if (r.confidence_reason) { rr.style.display=''; rr.textContent = 'ℹ️ ' + r.confidence_reason; }
+  else rr.style.display = 'none';
 
-  const agencies = r.compliance_agencies_detected || [];
+  const ag = r.compliance_agencies_detected || [];
   const rc = document.getElementById('r-compliance');
-  if (agencies.length) {
-    rc.style.display = '';
-    rc.innerHTML = `⚖️ <strong>Compliance references detected:</strong> ${agencies.join(', ')} &nbsp;·&nbsp; Compliance Agency field pending TRIN-69.`;
-  } else { rc.style.display = 'none'; }
+  if (ag.length) { rc.style.display=''; rc.innerHTML = `⚖️ <strong>Compliance detected:</strong> ${ag.join(', ')}`; }
+  else rc.style.display = 'none';
 
   const isZero = r.pm_count === 0;
   document.getElementById('r-zero').style.display = isZero ? '' : 'none';
@@ -907,18 +627,19 @@ function renderStep2() {
   const container = document.getElementById('pm-forms');
   container.innerHTML = '';
   if (!isZero) (r.pms||[]).forEach(pm => container.appendChild(buildPmCard(pm, r)));
+
+  updateSummary();
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Build PM card ──────────────────────────────────────────────────────────
 function buildPmCard(pm, r) {
-  const n   = pm.pm_number;
-  const id  = `pm${n}`;
-  const el  = document.createElement('div');
-  el.id     = `card-${id}`;
+  const n  = pm.pm_number;
+  const id = `pm${n}`;
+  const el = document.createElement('div');
+  el.id    = `card-${id}`;
   el.className = 'pm-card';
 
-  const freqGap  = r.frequency_gap;
-  const freqNote = r.frequency_gap_note || '';
   let desc = pm.description || '';
   if (desc.length > 2000) desc = desc.slice(0,1950).trimEnd() + '\n[Truncated to 2,000 character limit]';
   const pClass = {High:'badge-high',Medium:'badge-medium',Low:'badge-low'}[pm.priority]||'badge-medium';
@@ -926,39 +647,39 @@ function buildPmCard(pm, r) {
   el.innerHTML = `
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
     <div>
-      <h3 style="font-size:0.95rem;font-weight:700;color:#1a1a1a">📋 PM #${n}</h3>
+      <h3 style="font-size:0.95rem;font-weight:700;color:#1a1a1a">PM #${n}</h3>
       <span class="badge ${pClass}" style="margin-top:5px;display:inline-flex">${pm.priority||'Medium'} Priority</span>
     </div>
-    <span id="badge-${id}" class="badge" style="background:#fffde7;color:#856404;border:1px solid #fde047;white-space:nowrap">🟡 Pending</span>
+    <span id="badge-${id}" class="badge" style="background:#fffde7;color:#856404;border:1px solid #fde047;white-space:nowrap;flex-shrink:0">🟡 Pending</span>
   </div>
 
-  ${freqGap ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#92400e;margin-bottom:14px">
-    ⚠️ <strong>Frequency not stated in document.</strong> ${esc(freqNote)}<br>
-    Please update <strong>Repeats</strong> before creating this PM.
+  ${r.frequency_gap ? `<div class="banner-amber" style="margin-bottom:12px">
+    ⚠️ <strong>Frequency not stated in document.</strong> ${esc(r.frequency_gap_note||'')}
+    Update <strong>Repeats</strong> before creating.
   </div>`:''}
 
   <div class="sec-div">⭐ Mandatory Fields</div>
 
-  <div style="background:#f0faf9;border:1px solid #b2dfdb;border-radius:7px;padding:9px 12px;font-size:0.82rem;color:#00695c;margin-bottom:12px">
-    🏢 <strong>Assets:</strong> Not auto-populated — you will select the asset(s) manually in MMM after creating.
+  <div class="banner-teal" style="margin-bottom:12px;font-size:0.8rem">
+    🏢 <strong>Assets:</strong> Not auto-populated — select the asset(s) manually in MMM after creating.
   </div>
 
   <div style="margin-bottom:10px">
-    <div class="field-label">📝 Title <span style="color:#dc2626">*</span></div>
+    <div class="field-label">📝 Title <span class="field-req">*</span></div>
     <input id="${id}-title" type="text" class="field-input" value="${esc(pm.title||'')}">
     <span class="ai-hint">🤖 ${esc(pm.title||'(none)')}</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
     <div>
-      <div class="field-label">🏷️ Category <span style="color:#dc2626">*</span></div>
+      <div class="field-label">🏷️ Category <span class="field-req">*</span></div>
       <select id="${id}-category" class="field-input">
         ${CATS.map(c=>`<option value="${c}"${c===pm.category?' selected':''}>${c}</option>`).join('')}
       </select>
       <span class="ai-hint">🤖 ${esc(pm.category||'Other')}</span>
     </div>
     <div>
-      <div class="field-label">🔁 Repeats <span style="color:#dc2626">*</span></div>
+      <div class="field-label">🔁 Repeats <span class="field-req">*</span></div>
       <input id="${id}-repeats" type="text" class="field-input"
         value="${esc((pm.repeats||'').includes('Not specified')?'':(pm.repeats||''))}"
         placeholder="e.g. Monthly — Every 1 Month, 1st">
@@ -968,12 +689,12 @@ function buildPmCard(pm, r) {
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
     <div>
-      <div class="field-label">📅 Start On <span style="color:#dc2626">*</span></div>
+      <div class="field-label">📅 Start On <span class="field-req">*</span></div>
       <input id="${id}-start" type="text" class="field-input" value="${esc(pm.start_on||'')}">
       <span class="ai-hint">🤖 ${esc(pm.start_on||'(none)')}</span>
     </div>
     <div>
-      <div class="field-label">⏰ Create WO Time <span style="color:#dc2626">*</span></div>
+      <div class="field-label">⏰ Create WO Time <span class="field-req">*</span></div>
       <input id="${id}-wo-time" type="text" class="field-input" value="${esc(pm.create_wo_time||'')}">
       <span class="ai-hint">🤖 ${esc(pm.create_wo_time||'(none)')}</span>
     </div>
@@ -1018,19 +739,19 @@ function buildPmCard(pm, r) {
 
   <div class="sec-div">📄 Description</div>
   <textarea id="${id}-desc" class="field-input" rows="5" oninput="updateChar('${id}')">${esc(desc)}</textarea>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
-    <span class="ai-hint" style="margin-top:0">🤖 ${esc(desc.slice(0,60))}${desc.length>60?'…':''}</span>
-    <span id="${id}-chars" style="font-size:0.72rem;color:#aaa">0 / 2,000</span>
+  <div style="display:flex;justify-content:space-between;margin-top:3px;align-items:center">
+    <span class="ai-hint" style="margin:0">${esc(desc.slice(0,60))}${desc.length>60?'…':''}</span>
+    <span id="${id}-chars" style="font-size:0.7rem;color:#bbb">0 / 2,000</span>
   </div>
   <div class="char-bar-wrap"><div id="${id}-charbar" class="char-bar" style="width:0%;background:#009688"></div></div>
-  <p id="${id}-char-err" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — please shorten.</p>
+  <p id="${id}-char-err" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
 
-  ${pm.extraction_notes ? `<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:7px;padding:9px 12px;font-size:0.78rem;color:#1e40af;margin-top:8px">📌 ${esc(pm.extraction_notes)}</div>`:'' }
+  ${pm.extraction_notes ? `<div class="banner-blue" style="margin-top:10px;margin-bottom:0">📌 ${esc(pm.extraction_notes)}</div>`:''}
 
-  <hr style="margin:14px 0;border:none;border-top:1px solid #f0f0f0">
+  <hr style="margin:16px 0;border:none;border-top:1px solid #f0f0f0">
   <div style="display:flex;gap:10px">
     <button id="${id}-btn-create" class="btn-primary" onclick="setPmState('${id}','created')" style="flex:1">✅ Create PM</button>
-    <button class="btn-outline" onclick="setPmState('${id}','discarded')" style="flex:1">🗑️ Discard</button>
+    <button class="btn-discard" onclick="setPmState('${id}','discarded')" style="flex:1">🗑️ Discard</button>
   </div>`;
 
   setTimeout(() => updateChar(id), 0);
@@ -1041,35 +762,42 @@ function buildPmCard(pm, r) {
 function setPmState(id, state) {
   pmStates[id] = state;
   const card  = document.getElementById(`card-${id}`);
-  const titleEl = card.querySelector(`#${id}-title`);
-  const title   = titleEl ? titleEl.value : id;
+  const title = (card.querySelector(`#${id}-title`) || {}).value || id;
 
   if (state === 'created') {
     card.className = 'pm-card created';
-    card.innerHTML = `<div style="display:flex;align-items:center;gap:12px;color:#009688">
-      <span style="font-size:1.6rem">✅</span>
+    card.innerHTML = `<div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.8rem">✅</span>
       <div>
-        <p style="font-weight:600">${esc(title)}</p>
-        <p style="font-size:0.82rem;color:#00695c;margin-top:2px">PM created. Assign asset(s) in MMM.</p>
+        <p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+        <p style="font-size:0.82rem;color:#009688;margin-top:3px">PM created. Assign asset(s) in MMM.</p>
       </div>
     </div>`;
   } else {
     card.className = 'pm-card discarded';
-    card.innerHTML = `<div style="display:flex;align-items:center;gap:12px;color:#dc2626">
-      <span style="font-size:1.6rem">🗑️</span>
+    card.innerHTML = `<div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.8rem">🗑️</span>
       <div>
-        <p style="font-weight:600">${esc(title)}</p>
-        <p style="font-size:0.82rem;margin-top:2px">PM discarded.</p>
+        <p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+        <p style="font-size:0.82rem;color:#dc2626;margin-top:3px">PM discarded.</p>
       </div>
     </div>`;
   }
+  updateSummary();
 }
 
-function updateSummaryPanel() {
+// ── Summary ────────────────────────────────────────────────────────────────
+function updateSummary() {
   const vals = Object.values(pmStates);
-  document.getElementById('s-created').textContent   = vals.filter(v=>v==='created').length;
-  document.getElementById('s-discarded').textContent = vals.filter(v=>v==='discarded').length;
-  document.getElementById('s-pending').textContent   = vals.filter(v=>v==='pending').length;
+  const c = vals.filter(v=>v==='created').length;
+  const d = vals.filter(v=>v==='discarded').length;
+  const p = vals.filter(v=>v==='pending').length;
+  if (c + d > 0) {
+    document.getElementById('review-summary').style.display = '';
+    document.getElementById('s-created').textContent   = c;
+    document.getElementById('s-discarded').textContent = d;
+    document.getElementById('s-pending').textContent   = p;
+  }
 }
 
 // ── Char counter ───────────────────────────────────────────────────────────
@@ -1077,21 +805,18 @@ function updateChar(id) {
   const ta = document.getElementById(`${id}-desc`);
   if (!ta) return;
   const len = ta.value.length;
-  const pct = Math.min(len/2000*100, 100);
+  const pct = Math.min(len/2000*100,100);
   document.getElementById(`${id}-chars`).textContent = `${len.toLocaleString()} / 2,000`;
   const bar = document.getElementById(`${id}-charbar`);
   bar.style.width = pct+'%';
   bar.style.background = pct<80?'#009688':pct<95?'#f59e0b':'#ef4444';
-  const err = document.getElementById(`${id}-char-err`);
-  err.style.display = len>2000 ? '' : 'none';
+  document.getElementById(`${id}-char-err`).style.display = len>2000?'':'none';
   const btn = document.getElementById(`${id}-btn-create`);
   if (btn) btn.disabled = len>2000;
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────
-function exportJSON() {
-  dl(JSON.stringify(apiResult,null,2), `pm_schedule_${ts()}.json`, 'application/json');
-}
+function exportJSON() { dl(JSON.stringify(apiResult,null,2),`pm_schedule_${ts()}.json`,'application/json'); }
 function exportText() {
   const lines = (apiResult.pms||[]).flatMap(pm => [
     `PM #${pm.pm_number} — ${pm.title}`,
@@ -1103,26 +828,21 @@ function exportText() {
     `  Assign To  : ${pm.assign_to||'Blank'}`,
     `  Attachment : ${pm.add_attachment||''}`,
     pm.note ? `  Note       : ${pm.note}` : null,
-    '', 'Description:', pm.description||'',
-    '', '─'.repeat(60), ''
+    '','Description:', pm.description||'','','─'.repeat(60),''
   ].filter(l=>l!==null));
-  dl(lines.join('\n'), `pm_schedule_${ts()}.txt`, 'text/plain');
+  dl(lines.join('\n'),`pm_schedule_${ts()}.txt`,'text/plain');
 }
-function dl(content, name, mime) {
+function dl(content,name,mime) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content],{type:mime}));
   a.download = name; a.click();
 }
 function ts() { return new Date().toISOString().slice(0,16).replace(/[T:]/g,'').replace(/-/g,''); }
-
-// ── Escape ─────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Wire events ────────────────────────────────────────────────────────────
 document.getElementById('text-input').addEventListener('input', updateGenBtn);
-
 </script>
 </body>
 </html>
