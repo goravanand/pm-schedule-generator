@@ -950,11 +950,6 @@ function buildCard(pm, r) {
   let desc=pm.description||'';
   if (desc.length>2000) desc=desc.slice(0,1950).trimEnd()+'\n[Truncated to 2,000 chars]';
 
-  // Determine which optional fields AI actually filled
-  const hasEnd   = pm.end_after  && pm.end_after  !== 'Blank' && pm.end_after.trim()  !== '';
-  const hasAsgn  = pm.assign_to  && pm.assign_to  !== 'Blank' && pm.assign_to.trim()  !== '';
-  const hasAtt   = pm.add_attachment && pm.add_attachment.trim() !== '';
-  const hasNote  = pm.note && pm.note.trim() !== '';
   const freqVal  = (pm.repeats||'').replace(/Not specified.*/i,'').trim();
   const startVal = pm.start_on||'';
   const woVal    = pm.create_wo_time||'';
@@ -1043,15 +1038,29 @@ function buildCard(pm, r) {
     <p id="${id}-cerr" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
   </div>
 
-  <!-- Optional fields — only show if AI populated them; otherwise small muted hint -->
-  ${hasAsgn||hasEnd||hasAtt||hasNote?`
-  <div style="display:grid;grid-template-columns:${[hasAsgn,hasEnd,hasAtt].filter(Boolean).length>1?'1fr 1fr':'1fr'};gap:12px;margin-top:12px;margin-bottom:12px">
-    ${hasAsgn?`<div><div class="field-label">Assign To</div><input id="${id}-asgn" type="text" class="field-input" value="${esc(pm.assign_to)}"></div>`:''}
-    ${hasEnd ?`<div><div class="field-label">End After</div><input id="${id}-end"  type="text" class="field-input" value="${esc(pm.end_after)}"></div>`:''}
-    ${hasAtt ?`<div><div class="field-label">Attachment</div><input id="${id}-att" type="text" class="field-input" value="${esc(pm.add_attachment)}"></div>`:''}
+  <!-- Optional fields — always shown so user can fill before creating -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;margin-bottom:12px">
+    <div>
+      <div class="field-label">End After</div>
+      <input id="${id}-end" type="text" class="field-input"
+        value="${esc((pm.end_after||'').replace(/^Blank$/i,''))}" placeholder="Leave blank for no end">
+    </div>
+    <div>
+      <div class="field-label">Assign To</div>
+      <input id="${id}-asgn" type="text" class="field-input"
+        value="${esc((pm.assign_to||'').replace(/^Blank$/i,''))}" placeholder="Select in MMM">
+    </div>
   </div>
-  ${hasNote?`<div style="margin-bottom:12px"><div class="field-label">Note</div><input id="${id}-note" type="text" class="field-input" value="${esc(pm.note)}"></div>`:''}
-  `:`<p style="font-size:0.72rem;color:#bbb;margin:10px 0 12px">Assign To · End After · Attachment not extracted — fill manually if needed.</p>`}
+  <div style="margin-bottom:12px">
+    <div class="field-label">Note</div>
+    <input id="${id}-note" type="text" class="field-input"
+      value="${esc(pm.note||'')}" placeholder="e.g. Per ISO 9001 — Section 4.2">
+  </div>
+  <div style="margin-bottom:12px">
+    <div class="field-label">Attachment</div>
+    <input id="${id}-att" type="text" class="field-input"
+      value="${esc(pm.add_attachment||'')}" placeholder="Source document auto-attached on creation">
+  </div>
 
   <!-- Actions -->
   <hr style="margin:14px 0 14px;border:none;border-top:1px solid #f0f0f0">
