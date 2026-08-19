@@ -4,73 +4,174 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI PM Schedule Generator — MMM</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', sans-serif; background: #f0f0f0; min-height: 100vh; }
+/* ═══════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Inter', sans-serif; background: #f0f0f0; }
 
-/* ── Top bar ─────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════════════ */
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Top bar ── */
 #topbar {
-  height: 54px; background: #fff; border-bottom: 1px solid #ddd;
-  display: flex; align-items: center; padding: 0 28px; gap: 18px;
-  position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  flex: 0 0 54px; background: #fff; border-bottom: 1px solid #e0e0e0;
+  display: flex; align-items: center; padding: 0 24px; gap: 14px; z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
-.siemens-wordmark { font-size: 1.1rem; font-weight: 700; letter-spacing: .14em; color: #000; }
-.topbar-divider   { width: 1px; height: 22px; background: #ddd; }
-.topbar-title     { font-size: 0.875rem; font-weight: 500; color: #333; }
-.topbar-badge     { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.topbar-badge span { font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
-.badge-proto  { background: #fff3cd; color: #856404; border: 1px solid #fde68a; }
-.badge-ticket { background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; }
+.siemens-logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .15em; color: #000; flex-shrink: 0; }
+.tb-divider   { width: 1px; height: 22px; background: #d0d0d0; flex-shrink: 0; }
+.tb-org       { font-size: 0.875rem; font-weight: 400; color: #333; }
+.tb-search    {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  border: 1px solid #d0d0d0; border-radius: 999px; padding: 5px 14px;
+  background: #f9f9f9; color: #999; font-size: 0.82rem; min-width: 200px;
+}
+.tb-search svg { flex-shrink: 0; }
+.tb-gear {
+  margin-left: 10px; cursor: pointer; padding: 6px; border-radius: 7px;
+  border: 1px solid #d0d0d0; background: #fafafa; color: #888;
+  display: flex; align-items: center; gap: 5px; font-size: 0.75rem;
+  white-space: nowrap; transition: all .15s; user-select: none;
+}
+.tb-gear:hover { background: #f0f0f0; color: #555; }
 
-/* ── Settings toggle ─────────────────────────────────────────────────────── */
-#api-settings-btn {
-  display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #888;
-  cursor: pointer; padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px;
-  background: #fafafa; transition: all .15s; user-select: none;
+/* ── API panel ── */
+#api-panel {
+  display: none; flex-shrink: 0; background: #fffbeb;
+  border-bottom: 1px solid #fde68a; padding: 9px 24px;
+  align-items: center; gap: 12px; z-index: 99;
 }
-#api-settings-btn:hover { background: #f0f0f0; color: #555; }
-#api-settings-panel {
-  background: #fffbeb; border-bottom: 1px solid #fde68a;
-  padding: 10px 28px; display: none; align-items: center; gap: 12px;
-}
-#api-settings-panel input {
+#api-panel input {
   font-family: monospace; font-size: 0.82rem; border: 1px solid #e0e0e0;
   border-radius: 6px; padding: 6px 10px; outline: none; width: 340px;
-  transition: border-color .15s;
+  transition: border-color .15s; background: #fff;
 }
-#api-settings-panel input:focus { border-color: #009688; }
+#api-panel input:focus { border-color: #009688; }
+#api-panel-label { font-size: 0.82rem; font-weight: 500; color: #92400e; white-space: nowrap; }
+#api-panel-hint  { font-size: 0.74rem; color: #aaa; }
+#api-panel-link  { font-size: 0.74rem; color: #009688; text-decoration: none; white-space: nowrap; margin-left: auto; }
 
-/* ── Page layout ─────────────────────────────────────────────────────────── */
-.page-wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+/* ── Body row (sidebar + content) ── */
+#body { display: flex; flex: 1; overflow: hidden; }
 
-/* ── Page header ─────────────────────────────────────────────────────────── */
-.page-header { margin-bottom: 22px; }
-.page-header h1 { font-size: 1.35rem; font-weight: 700; color: #1a1a1a; }
-.page-header p  { font-size: 0.875rem; color: #777; margin-top: 4px; line-height: 1.5; }
-.doc-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.doc-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 0.72rem; font-weight: 500; padding: 3px 10px; border-radius: 999px;
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════ */
+#sidebar {
+  width: 250px; flex-shrink: 0; background: #fff; border-right: 1px solid #e4e4e4;
+  display: flex; flex-direction: column; padding: 14px 12px; gap: 4px;
+  overflow-y: auto; transition: width .2s;
 }
-.pill-teal   { background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; }
-.pill-amber  { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+#sidebar.collapsed { width: 56px; }
 
-/* ── Card ────────────────────────────────────────────────────────────────── */
+.sb-collapse {
+  align-self: flex-end; background: none; border: none; cursor: pointer;
+  color: #999; padding: 4px 6px; border-radius: 6px; margin-bottom: 6px;
+  transition: all .15s;
+}
+.sb-collapse:hover { background: #f5f5f5; color: #333; }
+
+.sb-get-started {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border: 2px solid #009688; border-radius: 999px; background: none;
+  color: #009688; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  width: 100%; margin-bottom: 6px; transition: all .15s; font-family: inherit;
+  white-space: nowrap; overflow: hidden;
+}
+.sb-get-started:hover { background: #f0faf9; }
+#sidebar.collapsed .sb-get-started { justify-content: center; padding: 9px 0; }
+#sidebar.collapsed .sb-label       { display: none; }
+
+.sb-create {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 12px; border-radius: 999px; background: #009688;
+  color: #fff; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  width: 100%; border: none; margin-bottom: 12px; transition: all .15s;
+  font-family: inherit; white-space: nowrap; overflow: hidden;
+}
+.sb-create:hover { background: #00796b; }
+
+.sb-divider { height: 1px; background: #f0f0f0; margin: 4px 0 8px; }
+
+.sb-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: 8px; cursor: pointer; font-size: 0.875rem; color: #333;
+  font-weight: 400; transition: all .15s; white-space: nowrap; overflow: hidden;
+  border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+}
+.sb-item:hover    { background: #f5f5f5; }
+.sb-item.active   { background: #e8f5f3; color: #009688; font-weight: 500; }
+.sb-item svg      { flex-shrink: 0; }
+.sb-item .chevron { margin-left: auto; flex-shrink: 0; }
+#sidebar.collapsed .sb-item { justify-content: center; }
+
+/* ═══════════════════════════════════════════════════════
+   CONTENT AREA
+═══════════════════════════════════════════════════════ */
+#content { flex: 1; overflow-y: auto; background: #f0f0f0; }
+
+/* ─── HOME VIEW ─── */
+#view-home { padding: 40px 48px; max-width: 900px; }
+.home-greeting { font-size: 1.6rem; font-weight: 700; color: #1a1a1a; margin-bottom: 28px; }
+
+.home-feature-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 14px;
+  padding: 28px 32px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.home-feature-card-top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.home-card-icon { font-size: 2rem; flex-shrink: 0; margin-top: 2px; }
+.home-card-body h2 { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.home-card-body p  { font-size: 0.875rem; color: #666; line-height: 1.65; }
+
+.badge-ar {
+  font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; white-space: nowrap;
+}
+.btn-create-large {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #009688; color: #fff; border: none; border-radius: 10px;
+  padding: 12px 26px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background .15s; font-family: inherit;
+}
+.btn-create-large:hover { background: #00796b; }
+
+.home-doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 6px; }
+.home-doc-card {
+  background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 10px;
+  padding: 18px 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.home-doc-card .doc-icon { font-size: 1.4rem; }
+.home-doc-card h4 { font-size: 0.875rem; font-weight: 600; color: #1a1a1a; }
+.home-doc-card p  { font-size: 0.78rem; color: #888; line-height: 1.5; }
+
+/* ─── CREATE VIEW ─── */
+#view-create { padding: 28px 40px 60px; max-width: 860px; }
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px; font-size: 0.78rem;
+  color: #aaa; margin-bottom: 22px;
+}
+.breadcrumb a { color: #009688; text-decoration: none; cursor: pointer; }
+.breadcrumb a:hover { text-decoration: underline; }
+
+/* ─── CARDS ─── */
 .card {
   background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
   padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .card-title {
-  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #999; padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0; margin-bottom: 16px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: #aaa; margin-bottom: 14px;
+  padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
 }
 
-/* ── Tabs ─────────────────────────────────────────────────────────────────── */
-.tab-row { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 16px; gap: 0; }
+/* ── Tabs ── */
+.tab-row { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 16px; }
 .tab-btn {
   padding: 8px 18px; font-size: 0.85rem; cursor: pointer; border: none;
   background: transparent; border-bottom: 3px solid transparent;
@@ -79,16 +180,17 @@ body { font-family: 'Inter', sans-serif; background: #f0f0f0; min-height: 100vh;
 .tab-btn.active { border-bottom-color: #009688; color: #009688; }
 .tab-btn:hover:not(.active) { color: #444; background: #fafafa; }
 
-/* ── Drop zone ────────────────────────────────────────────────────────────── */
+/* ── Drop zone ── */
 .drop-zone {
-  border: 2px dashed #d0d0d0; border-radius: 10px; padding: 30px 20px;
+  border: 2px dashed #d0d0d0; border-radius: 10px; padding: 36px 20px;
   text-align: center; cursor: pointer; transition: all .15s; background: #fafafa;
 }
 .drop-zone:hover, .drop-zone.drag-over { border-color: #009688; background: #f0faf9; }
 
-/* ── Field styles ─────────────────────────────────────────────────────────── */
+/* ── Fields ── */
 .field-label { font-size: 0.8rem; font-weight: 500; color: #444; margin-bottom: 4px; }
 .field-req   { color: #dc2626; }
+.ai-hint     { font-size: 0.69rem; color: #bbb; font-style: italic; margin-top: 3px; display: block; }
 .field-input {
   width: 100%; border: 1px solid #d0d0d0; border-radius: 7px;
   padding: 7px 10px; font-size: 0.85rem; outline: none; font-family: inherit;
@@ -96,270 +198,382 @@ body { font-family: 'Inter', sans-serif; background: #f0f0f0; min-height: 100vh;
 }
 .field-input:focus { border-color: #009688; box-shadow: 0 0 0 3px rgba(0,150,136,.1); }
 select.field-input { cursor: pointer; }
-textarea.field-input { resize: vertical; min-height: 100px; }
-.ai-hint { font-size: 0.7rem; color: #bbb; font-style: italic; margin-top: 3px; display: block; }
+textarea.field-input { resize: vertical; min-height: 90px; }
 
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
+/* ── Buttons ── */
 .btn-primary {
-  background: #009688; color: #fff; border: none; border-radius: 7px;
-  padding: 10px 22px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
-  transition: background .15s; font-family: inherit;
+  background: #009688; color: #fff; border: none; border-radius: 8px;
+  padding: 11px 24px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  transition: background .15s; font-family: inherit; width: 100%;
 }
 .btn-primary:hover    { background: #00796b; }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 .btn-secondary {
-  background: #fff; color: #555; border: 1px solid #d0d0d0; border-radius: 7px;
-  padding: 10px 22px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
+  background: #fff; color: #555; border: 1px solid #d0d0d0; border-radius: 8px;
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
   transition: all .15s; font-family: inherit;
 }
 .btn-secondary:hover { background: #f5f5f5; }
 .btn-discard {
-  background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 7px;
-  padding: 10px 22px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
+  background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px;
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
   transition: all .15s; font-family: inherit;
 }
 .btn-discard:hover { background: #fef2f2; }
 
-/* ── Generate button row ──────────────────────────────────────────────────── */
-.gen-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
-.gen-row .btn-primary { flex: 1; padding: 11px; }
-
-/* ── Spinner ─────────────────────────────────────────────────────────────── */
-.spin { animation: spin 1s linear infinite; }
+/* ── Spinner ── */
+.spin { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Metrics row ─────────────────────────────────────────────────────────── */
+/* ── Metrics ── */
 .metrics-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
 .metric-card {
   background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
-  padding: 14px 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  padding: 14px 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.03);
 }
-.metric-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .07em; color: #aaa; margin-bottom: 5px; }
+.metric-label { font-size: 0.67rem; text-transform: uppercase; letter-spacing: .07em; color: #bbb; margin-bottom: 5px; }
 .metric-val   { font-size: 0.9rem; font-weight: 600; color: #222; }
-.metric-val.lg { font-size: 1.8rem; font-weight: 700; color: #009688; }
+.metric-val.lg { font-size: 1.9rem; font-weight: 700; color: #009688; }
 
-/* ── PM card ──────────────────────────────────────────────────────────────── */
+/* ── PM card ── */
 .pm-card {
   background: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #009688;
   border-radius: 10px; padding: 22px 24px; margin-bottom: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .pm-card.created   { border-left-color: #22c55e; }
-.pm-card.discarded { border-left-color: #ef4444; opacity: .7; }
+.pm-card.discarded { border-left-color: #ef4444; opacity: .65; }
 
-/* ── Section divider ──────────────────────────────────────────────────────── */
 .sec-div {
-  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #bbb; margin: 16px 0 10px;
-  padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: #ccc; margin: 14px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;
 }
 
-/* ── Priority badges ──────────────────────────────────────────────────────── */
+/* ── Badges ── */
 .badge { display: inline-flex; align-items: center; padding: 2px 10px;
          border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
 .badge-high   { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
 .badge-medium { background:#fffbeb; color:#d97706; border:1px solid #fde68a; }
 .badge-low    { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+.badge-pend   { background:#fffde7; color:#856404; border:1px solid #fde047; }
 
-/* ── Char bar ─────────────────────────────────────────────────────────────── */
+/* ── Char bar ── */
 .char-bar-wrap { height: 4px; background: #f0f0f0; border-radius: 2px; margin-top: 4px; overflow: hidden; }
-.char-bar { height: 100%; border-radius: 2px; transition: width .3s, background .3s; }
+.char-bar { height: 100%; border-radius: 2px; transition: width .3s, background .3s; background: #009688; }
 
-/* ── Info / warning banners ───────────────────────────────────────────────── */
-.banner-blue   { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#1e40af; margin-bottom:12px; }
-.banner-amber  { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#92400e; margin-bottom:12px; }
-.banner-red    { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
-.banner-teal   { background:#f0faf9; border:1px solid #b2dfdb; border-radius:8px; padding:11px 14px; font-size:0.82rem; color:#00695c; margin-bottom:12px; }
+/* ── Banners ── */
+.banner-blue  { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#1e40af; margin-bottom:12px; }
+.banner-amber { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#92400e; margin-bottom:12px; }
+.banner-teal  { background:#f0faf9; border:1px solid #b2dfdb; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#00695c; margin-bottom:12px; }
+.banner-red   { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
 
-/* ── Review summary ───────────────────────────────────────────────────────── */
+/* ── Summary ── */
 .summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
-.summary-cell { border-radius: 8px; padding: 14px; text-align: center; }
-.sum-created   { background:#f0faf9; }
-.sum-discarded { background:#fef2f2; }
-.sum-pending   { background:#fffbeb; }
-.sum-num { font-size: 1.8rem; font-weight: 700; }
-.sum-lbl { font-size: 0.75rem; margin-top: 2px; font-weight: 500; }
+.sum-cell { border-radius: 8px; padding: 14px; text-align: center; }
+.sum-num  { font-size: 1.8rem; font-weight: 700; }
+.sum-lbl  { font-size: 0.74rem; margin-top: 2px; font-weight: 500; }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  #sidebar { display: none; }
+  #view-home, #view-create { padding: 20px 16px 40px; }
+  .home-doc-grid { grid-template-columns: 1fr; }
+  .metrics-row { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
+<div id="app">
 
-<!-- ══ TOP BAR ══════════════════════════════════════════════════════════════ -->
-<div id="topbar">
-  <span class="siemens-wordmark">SIEMENS</span>
-  <div class="topbar-divider"></div>
-  <span class="topbar-title">Maintenance Management</span>
-  <div class="topbar-badge">
-    <span class="badge-ticket">AR-952</span>
-    <span class="badge-proto">Prototype</span>
-    <div id="api-settings-btn" onclick="toggleApiPanel()">
+  <!-- ══ TOP BAR ══════════════════════════════════════════════════════════ -->
+  <div id="topbar">
+    <span class="siemens-logo">SIEMENS</span>
+    <div class="tb-divider"></div>
+    <span class="tb-org">Frank's green mountain coffee</span>
+    <div class="tb-search">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      Search
+    </div>
+    <div class="tb-gear" onclick="toggleApiPanel()" id="api-gear-btn">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
       </svg>
-      <span id="api-btn-label">API Key</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── API key panel (hidden by default) ─────────────────────────────────── -->
-<div id="api-settings-panel">
-  <svg width="14" height="14" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24">
-    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-  </svg>
-  <span style="font-size:0.82rem;color:#92400e;font-weight:500">Claude API Key</span>
-  <input id="api-key" type="password" placeholder="sk-ant-api03-…" oninput="updateGenBtn()">
-  <span id="key-status" style="font-size:0.75rem;color:#aaa">
-    Stays in this browser tab only — never stored or sent anywhere except Anthropic.
-  </span>
-  <a href="https://console.anthropic.com/api-keys" target="_blank"
-    style="font-size:0.75rem;color:#009688;text-decoration:none;margin-left:auto;white-space:nowrap">
-    Get a key →
-  </a>
-</div>
-
-<!-- ══ PAGE ═════════════════════════════════════════════════════════════════ -->
-<div class="page-wrap">
-
-  <!-- Page header -->
-  <div class="page-header">
-    <h1>AI PM Schedule Generator</h1>
-    <p>Upload a maintenance document — AI reads it and pre-fills all 10 MMM PM Creation Form fields for review.</p>
-    <div class="doc-pills">
-      <span class="doc-pill pill-teal">✅ OEM Manuals</span>
-      <span class="doc-pill pill-teal">✅ Maintenance SOPs</span>
-      <span class="doc-pill pill-teal">✅ FDA / GMP Compliance SOPs</span>
-      <span class="doc-pill pill-amber">⚠️ Frequency Gap Detection</span>
+      <span id="api-gear-label">API Key</span>
     </div>
   </div>
 
-  <!-- ── Input card ── -->
-  <div class="card">
-    <div class="card-title">Document Source</div>
-    <div class="tab-row">
-      <button class="tab-btn active" id="tab-pdf"  onclick="switchTab('pdf')">📄 PDF Upload</button>
-      <button class="tab-btn"        id="tab-text" onclick="switchTab('text')">🎙️ Voice / Text</button>
-    </div>
+  <!-- ── API key panel ─────────────────────────────────────────────────── -->
+  <div id="api-panel">
+    <span id="api-panel-label">🔑 Claude API Key</span>
+    <input id="api-key" type="password" placeholder="sk-ant-api03-…" oninput="onKeyInput()">
+    <span id="api-panel-hint">Stays in this browser tab only.</span>
+    <a id="api-panel-link" href="https://console.anthropic.com/api-keys" target="_blank">Get a key →</a>
+  </div>
 
-    <!-- PDF panel -->
-    <div id="panel-pdf">
-      <div class="drop-zone" id="drop-zone"
-        onclick="document.getElementById('file-input').click()"
-        ondragover="dzEv(event,'add')" ondragleave="dzEv(event,'remove')" ondrop="handleDrop(event)">
-        <div style="font-size:2.2rem;margin-bottom:8px">📁</div>
-        <p style="font-size:0.875rem;font-weight:500;color:#444">Click to upload or drag &amp; drop a PDF</p>
-        <p style="font-size:0.75rem;color:#bbb;margin-top:4px">OEM manuals · Maintenance SOPs · FDA/GMP compliance SOPs · max 10 MB</p>
-      </div>
-      <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event.target.files[0])">
-      <div id="file-info" style="display:none;margin-top:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:8px;padding:9px 14px;font-size:0.82rem;color:#00695c"></div>
-      <details id="pdf-preview" style="display:none;margin-top:6px">
-        <summary style="font-size:0.72rem;color:#bbb;cursor:pointer">Preview extracted text</summary>
-        <pre id="pdf-text-pre" style="margin-top:6px;font-size:0.7rem;color:#777;background:#f9f9f9;border-radius:7px;padding:10px;max-height:110px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></pre>
-      </details>
-    </div>
+  <!-- ══ BODY ═════════════════════════════════════════════════════════════ -->
+  <div id="body">
 
-    <!-- Text panel -->
-    <div id="panel-text" style="display:none">
-      <div style="margin-bottom:10px">
-        <div class="field-label">Voice transcript or maintenance description</div>
-        <textarea id="text-input" class="field-input" rows="6"
-          placeholder="Example: We need a monthly HVAC inspection on the 1st of each month — check filters, lubricate bearings, inspect belts, verify thermostat calibration..."></textarea>
-      </div>
-      <div>
-        <div class="field-label">Source label <span style="color:#bbb;font-weight:400">(optional)</span></div>
-        <input id="source-label" type="text" class="field-input" value="Voice Input">
-      </div>
-    </div>
+    <!-- ── SIDEBAR ── -->
+    <div id="sidebar" class="">
+      <button class="sb-collapse" onclick="toggleSidebar()" title="Collapse">
+        <svg id="sb-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
 
-    <!-- Generate -->
-    <div class="gen-row" style="margin-top:16px">
-      <button id="gen-btn" class="btn-primary" onclick="generate()" disabled>
-        🚀 Generate PM Schedules
+      <button class="sb-get-started" onclick="goHome()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" flex-shrink="0">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span class="sb-label">Let's get started!</span>
+      </button>
+
+      <button class="sb-create" onclick="goCreate()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span class="sb-label">Create</span>
+      </button>
+
+      <div class="sb-divider"></div>
+
+      <button class="sb-item active" id="nav-home" onclick="goHome()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span class="sb-label">Home</span>
+      </button>
+
+      <button class="sb-item" id="nav-create" onclick="goCreate()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+        <span class="sb-label">Work</span>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span class="sb-label">Plan</span>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 8v4l3 3"/>
+        </svg>
+        <span class="sb-label">Manage</span>
+        <svg class="chevron" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M4 6h16M4 12h16M4 18h7"/>
+        </svg>
+        <span class="sb-label">Catalog</span>
+        <svg class="chevron" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <span class="sb-label">Analyze</span>
       </button>
     </div>
 
-    <!-- No-key warning -->
-    <div id="no-key-warn" style="display:none;margin-top:10px" class="banner-amber">
-      ⚠️ No API key set — click <strong>API Key</strong> in the top-right to add yours.
-    </div>
+    <!-- ══ CONTENT ══════════════════════════════════════════════════════ -->
+    <div id="content">
 
-    <!-- Loading -->
-    <div id="loading" style="display:none;margin-top:14px;text-align:center">
-      <div style="display:inline-flex;align-items:center;gap:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:12px 20px">
-        <svg class="spin" style="width:18px;height:18px;color:#009688" fill="none" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
-          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
-        </svg>
-        <span id="loading-text" style="font-size:0.85rem;color:#00695c;font-weight:500">Analysing document…</span>
-      </div>
-    </div>
-  </div>
+      <!-- ─ HOME VIEW ─ -->
+      <div id="view-home">
+        <h1 class="home-greeting">Hi Frank! Let's get to work</h1>
 
-  <!-- ── Results (hidden until generated) ── -->
-  <div id="results" style="display:none">
+        <div class="home-feature-card">
+          <div class="home-feature-card-top">
+            <div class="home-card-icon">🔧</div>
+            <div class="home-card-body">
+              <h2>
+                AI PM Schedule Generator
+                <span class="badge-ar">AR-952 Prototype</span>
+              </h2>
+              <p>
+                Upload an equipment manual or maintenance SOP — AI reads it and pre-fills all
+                <strong>10 PM Creation Form fields</strong> for you. Supports OEM manuals,
+                internal SOPs, and <strong>FDA / GMP compliance SOPs</strong>.
+              </p>
+            </div>
+          </div>
+          <button class="btn-create-large" onclick="goCreate()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Create PM Schedule
+          </button>
 
-    <!-- Metrics -->
-    <div class="metrics-row">
-      <div class="metric-card">
-        <div class="metric-label">Document Type</div>
-        <div id="r-type" class="metric-val"></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">AI Confidence</div>
-        <div id="r-conf" class="metric-val"></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">PMs Generated</div>
-        <div id="r-count" class="metric-val lg"></div>
-      </div>
-    </div>
-
-    <div id="r-reason"     style="display:none" class="banner-blue"></div>
-    <div id="r-compliance" style="display:none" class="banner-amber"></div>
-
-    <!-- Zero PM -->
-    <div id="r-zero" style="display:none" class="banner-red">
-      <h3 style="font-weight:700;color:#dc2626;font-size:0.95rem;margin-bottom:6px">❌ No PM Schedule Could Be Generated</h3>
-      <p id="r-zero-reason" style="font-size:0.82rem;color:#b91c1c;margin-bottom:12px"></p>
-      <div style="background:white;border-radius:8px;border:1px solid #fecaca;padding:12px;font-size:0.82rem;color:#555">
-        <p style="font-weight:600;color:#333;margin-bottom:5px">Documents that DO generate PM schedules:</p>
-        <ul style="list-style:disc;padding-left:16px;color:#666;line-height:1.8">
-          <li>OEM equipment manuals (Trane, Carrier, Caterpillar, etc.)</li>
-          <li>Preventive maintenance SOPs with scheduled / periodic tasks</li>
-          <li>FDA / GMP / compliance SOPs with a PM Program section</li>
-          <li>Any document referencing periodic or scheduled maintenance</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- PM form cards -->
-    <div id="pm-forms"></div>
-
-    <!-- Review summary -->
-    <div id="review-summary" style="display:none" class="card">
-      <div class="card-title">Review Summary</div>
-      <div class="summary-grid">
-        <div class="summary-cell sum-created">
-          <div id="s-created"   class="sum-num" style="color:#009688">0</div>
-          <div class="sum-lbl"  style="color:#009688">✅ Created</div>
+          <div class="home-doc-grid" style="margin-top:20px">
+            <div class="home-doc-card">
+              <div class="doc-icon">📄</div>
+              <h4>OEM Manuals</h4>
+              <p>Explicit calendar frequencies extracted automatically</p>
+            </div>
+            <div class="home-doc-card">
+              <div class="doc-icon">📋</div>
+              <h4>Maintenance SOPs</h4>
+              <p>Internal procedures with frequency-gap detection</p>
+            </div>
+            <div class="home-doc-card">
+              <div class="doc-icon">⚖️</div>
+              <h4>FDA / GMP SOPs</h4>
+              <p>Compliance SOPs generate 2–5 PMs with regulatory notes</p>
+            </div>
+          </div>
         </div>
-        <div class="summary-cell sum-discarded">
-          <div id="s-discarded" class="sum-num" style="color:#dc2626">0</div>
-          <div class="sum-lbl"  style="color:#dc2626">🗑️ Discarded</div>
-        </div>
-        <div class="summary-cell sum-pending">
-          <div id="s-pending"   class="sum-num" style="color:#d97706">0</div>
-          <div class="sum-lbl"  style="color:#d97706">🟡 Pending</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn-secondary" onclick="exportJSON()" style="flex:1">⬇️ Download JSON</button>
-        <button class="btn-secondary" onclick="exportText()" style="flex:1">⬇️ Download Text</button>
-      </div>
-    </div>
+      </div><!-- /view-home -->
 
-  </div><!-- /results -->
+      <!-- ─ CREATE VIEW ─ -->
+      <div id="view-create" style="display:none">
 
-</div><!-- /page-wrap -->
+        <div class="breadcrumb">
+          <a onclick="goHome()">Home</a>
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+          <span style="color:#555">Create PM Schedule</span>
+        </div>
+
+        <!-- Input card -->
+        <div class="card">
+          <div class="card-title">Document Source</div>
+          <div class="tab-row">
+            <button class="tab-btn active" id="tab-pdf"  onclick="switchTab('pdf')">📄 PDF Upload</button>
+            <button class="tab-btn"        id="tab-text" onclick="switchTab('text')">🎙️ Voice / Text</button>
+          </div>
+
+          <!-- PDF panel -->
+          <div id="panel-pdf">
+            <div class="drop-zone" id="drop-zone"
+              onclick="document.getElementById('file-input').click()"
+              ondragover="dz(event,'add')" ondragleave="dz(event,'remove')" ondrop="handleDrop(event)">
+              <div style="font-size:2.4rem;margin-bottom:10px">📁</div>
+              <p style="font-size:0.9rem;font-weight:600;color:#444">Click to upload or drag &amp; drop a PDF</p>
+              <p style="font-size:0.78rem;color:#bbb;margin-top:5px">OEM manuals · Maintenance SOPs · FDA / GMP compliance SOPs · max 10 MB</p>
+            </div>
+            <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event.target.files[0])">
+            <div id="file-info"    style="display:none;margin-top:10px" class="banner-teal"></div>
+            <details id="pdf-prev" style="display:none;margin-top:6px">
+              <summary style="font-size:0.72rem;color:#bbb;cursor:pointer;user-select:none">Show extracted text preview</summary>
+              <pre id="pdf-pre" style="margin-top:6px;font-size:0.7rem;color:#888;background:#f9f9f9;border-radius:7px;padding:10px;max-height:110px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;border:1px solid #eee"></pre>
+            </details>
+          </div>
+
+          <!-- Text panel -->
+          <div id="panel-text" style="display:none">
+            <div style="margin-bottom:12px">
+              <div class="field-label">Voice transcript or maintenance description</div>
+              <textarea id="text-input" class="field-input" rows="6"
+                placeholder="E.g. Monthly HVAC inspection on the 1st — check filters, lubricate bearings, inspect belts, verify thermostat calibration…"></textarea>
+            </div>
+            <div>
+              <div class="field-label">Source label <span style="color:#bbb;font-weight:400">(optional)</span></div>
+              <input id="src-label" type="text" class="field-input" value="Voice Input">
+            </div>
+          </div>
+
+          <!-- Generate -->
+          <div style="margin-top:18px">
+            <button id="gen-btn" class="btn-primary" onclick="generate()" disabled>
+              🚀&nbsp; Generate PM Schedule
+            </button>
+          </div>
+
+          <div id="no-key-warn" style="display:none;margin-top:10px" class="banner-amber">
+            ⚠️ No API key set — click <strong>API Key</strong> in the top-right corner to enter yours.
+          </div>
+
+          <!-- Spinner -->
+          <div id="loading" style="display:none;margin-top:16px;text-align:center">
+            <div style="display:inline-flex;align-items:center;gap:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:13px 22px">
+              <svg class="spin" style="width:18px;height:18px;color:#009688" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
+              </svg>
+              <span id="load-txt" style="font-size:0.875rem;color:#00695c;font-weight:500">Analysing document…</span>
+            </div>
+          </div>
+        </div><!-- /input card -->
+
+        <!-- Results (hidden until run) -->
+        <div id="results" style="display:none">
+
+          <!-- Metrics -->
+          <div class="metrics-row">
+            <div class="metric-card">
+              <div class="metric-label">Document Type</div>
+              <div id="r-type" class="metric-val"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">AI Confidence</div>
+              <div id="r-conf" class="metric-val"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">PMs Generated</div>
+              <div id="r-count" class="metric-val lg"></div>
+            </div>
+          </div>
+
+          <div id="r-reason"     style="display:none" class="banner-blue"></div>
+          <div id="r-compliance" style="display:none" class="banner-amber"></div>
+
+          <!-- Zero PM -->
+          <div id="r-zero" style="display:none" class="banner-red">
+            <h3 style="font-weight:700;color:#dc2626;font-size:1rem;margin-bottom:8px">❌ No PM Schedule Could Be Generated</h3>
+            <p id="r-zero-reason" style="font-size:0.84rem;color:#b91c1c;margin-bottom:14px"></p>
+            <div style="background:#fff;border-radius:8px;border:1px solid #fecaca;padding:13px;font-size:0.82rem;color:#555">
+              <p style="font-weight:600;color:#333;margin-bottom:6px">Documents that DO generate PMs:</p>
+              <ul style="list-style:disc;padding-left:16px;color:#666;line-height:1.9">
+                <li>OEM equipment manuals (Trane, Carrier, Caterpillar…)</li>
+                <li>Preventive maintenance SOPs with scheduled / periodic tasks</li>
+                <li>FDA / GMP / compliance SOPs with a PM Program section</li>
+                <li>Any document referencing periodic or scheduled maintenance</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- PM form cards -->
+          <div id="pm-forms"></div>
+
+          <!-- Review summary -->
+          <div id="review-summary" style="display:none" class="card">
+            <div class="card-title">Review Summary</div>
+            <div class="summary-grid">
+              <div class="sum-cell" style="background:#f0faf9">
+                <div id="s-created"   class="sum-num" style="color:#009688">0</div>
+                <div class="sum-lbl"  style="color:#009688">✅ Created</div>
+              </div>
+              <div class="sum-cell" style="background:#fef2f2">
+                <div id="s-discarded" class="sum-num" style="color:#dc2626">0</div>
+                <div class="sum-lbl"  style="color:#dc2626">🗑️ Discarded</div>
+              </div>
+              <div class="sum-cell" style="background:#fffbeb">
+                <div id="s-pending"   class="sum-num" style="color:#d97706">0</div>
+                <div class="sum-lbl"  style="color:#d97706">🟡 Pending</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn-secondary" onclick="exportJSON()" style="flex:1">⬇️ Download JSON</button>
+              <button class="btn-secondary" onclick="exportText()" style="flex:1">⬇️ Download Text</button>
+            </div>
+          </div>
+
+        </div><!-- /results -->
+
+      </div><!-- /view-create -->
+
+    </div><!-- /content -->
+  </div><!-- /body -->
+</div><!-- /app -->
 
 <!-- ══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
@@ -372,34 +586,71 @@ const CATS = ['Calibration','Cleaning/Sanitation','Compliance','Inspection','Oth
               'Preventive Maintenance','Process Improvement','Projects','Safety'];
 const PRIS = ['High','Medium','Low'];
 
-let activeTab = 'pdf';
-let pdfContent = '';
-let pdfName    = '';
-let apiResult  = null;
-let pmStates   = {};
-
-// ── API panel toggle ───────────────────────────────────────────────────────
+let sidebarOpen = true;
+let activeTab   = 'pdf';
+let pdfContent  = '';
+let pdfName     = '';
+let apiResult   = null;
+let pmStates    = {};
 let apiPanelOpen = false;
-function toggleApiPanel() {
-  apiPanelOpen = !apiPanelOpen;
-  const p = document.getElementById('api-settings-panel');
-  p.style.display = apiPanelOpen ? 'flex' : 'none';
-  document.getElementById('api-btn-label').textContent = apiPanelOpen ? 'Close ✕' : 'API Key';
-  if (apiPanelOpen) setTimeout(() => document.getElementById('api-key').focus(), 50);
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function goHome() {
+  document.getElementById('view-home').style.display   = '';
+  document.getElementById('view-create').style.display = 'none';
+  setNavActive('nav-home');
+}
+function goCreate() {
+  document.getElementById('view-home').style.display   = 'none';
+  document.getElementById('view-create').style.display = '';
+  setNavActive('nav-create');
+  document.getElementById('content').scrollTop = 0;
+}
+function setNavActive(id) {
+  ['nav-home','nav-create'].forEach(x => {
+    const el = document.getElementById(x);
+    if (el) el.classList.toggle('active', x === id);
+  });
 }
 
-// ── Tab switch ─────────────────────────────────────────────────────────────
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed', !sidebarOpen);
+  const arrow = document.getElementById('sb-arrow');
+  arrow.innerHTML = sidebarOpen
+    ? '<path d="M15 18l-6-6 6-6"/>'
+    : '<path d="M9 18l6-6-6-6"/>';
+}
+
+// ── API panel ──────────────────────────────────────────────────────────────
+function toggleApiPanel() {
+  apiPanelOpen = !apiPanelOpen;
+  document.getElementById('api-panel').style.display = apiPanelOpen ? 'flex' : 'none';
+  document.getElementById('api-gear-label').textContent = apiPanelOpen ? 'Close ✕' : 'API Key';
+  if (apiPanelOpen) setTimeout(() => document.getElementById('api-key').focus(), 50);
+}
+function onKeyInput() {
+  const key = (document.getElementById('api-key').value||'').trim();
+  document.getElementById('api-panel-hint').innerHTML =
+    key.length > 10 ? '✅ <span style="color:#009688">Key entered</span>' :
+    'Stays in this browser tab only.';
+  updateGenBtn();
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
 function switchTab(t) {
   activeTab = t;
   ['pdf','text'].forEach(x => {
-    document.getElementById('tab-'+x).className = 'tab-btn' + (x===t?' active':'');
+    document.getElementById('tab-'+x).className   = 'tab-btn'+(x===t?' active':'');
     document.getElementById('panel-'+x).style.display = x===t ? '' : 'none';
   });
   updateGenBtn();
 }
 
-// ── Drag helpers ───────────────────────────────────────────────────────────
-function dzEv(e, action) { e.preventDefault(); document.getElementById('drop-zone').classList[action]('drag-over'); }
+// ── Drop zone ──────────────────────────────────────────────────────────────
+function dz(e, action) { e.preventDefault(); document.getElementById('drop-zone').classList[action]('drag-over'); }
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('drop-zone').classList.remove('drag-over');
@@ -407,9 +658,9 @@ function handleDrop(e) {
   if (f) handleFile(f);
 }
 
-// ── PDF handling ───────────────────────────────────────────────────────────
+// ── PDF ────────────────────────────────────────────────────────────────────
 async function handleFile(file) {
-  if (!file || file.type !== 'application/pdf') { alert('Please upload a PDF file.'); return; }
+  if (!file || file.type !== 'application/pdf') { alert('Please upload a PDF.'); return; }
   pdfName = file.name;
   const fi = document.getElementById('file-info');
   fi.style.display = '';
@@ -417,38 +668,34 @@ async function handleFile(file) {
   try {
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    let text = '';
+    let txt = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const items = (await (await pdf.getPage(i)).getTextContent()).items;
-      text += items.map(it => it.str).join(' ') + '\n';
+      txt += items.map(it => it.str).join(' ') + '\n';
     }
-    pdfContent = text.trim();
+    pdfContent = txt.trim();
     fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
-    const prev = document.getElementById('pdf-preview');
-    prev.style.display = '';
-    document.getElementById('pdf-text-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'…':'');
-  } catch(err) {
-    fi.textContent = '⚠️ Could not extract text — may be a scanned / image-based PDF.';
+    document.getElementById('pdf-prev').style.display = '';
+    document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
+  } catch {
+    fi.textContent = '⚠️ Could not extract text — may be a scanned / image-only PDF.';
     pdfContent = '';
   }
   updateGenBtn();
 }
 
-// ── Gen button state ───────────────────────────────────────────────────────
+// ── Gen button ─────────────────────────────────────────────────────────────
 function updateGenBtn() {
-  const key     = (document.getElementById('api-key').value || '').trim();
-  const hasPdf  = activeTab === 'pdf'  && pdfContent.length > 0;
-  const hasText = activeTab === 'text' && document.getElementById('text-input').value.trim().length > 0;
-  const hasContent = hasPdf || hasText;
-  document.getElementById('gen-btn').disabled = !hasContent;
-  document.getElementById('no-key-warn').style.display = hasContent && !key ? '' : 'none';
-  const s = document.getElementById('key-status');
-  if (key.length > 10) s.innerHTML = '✅ <span style="color:#009688">Key entered</span>';
-  else s.textContent = 'Stays in this browser tab only — never stored or sent anywhere except Anthropic.';
+  const key  = (document.getElementById('api-key').value||'').trim();
+  const hasPDF  = activeTab==='pdf'  && pdfContent.length>0;
+  const hasTxt  = activeTab==='text' && document.getElementById('text-input').value.trim().length>0;
+  const ok = hasPDF || hasTxt;
+  document.getElementById('gen-btn').disabled = !ok;
+  document.getElementById('no-key-warn').style.display = ok && !key ? '' : 'none';
 }
 
 // ── System prompt ──────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are an AI assistant specialised in extracting Preventive Maintenance (PM) schedules from maintenance documents, OEM equipment manuals, Standard Operating Procedures (SOPs), compliance/regulatory SOPs, and voice transcripts.
+const SYS = `You are an AI assistant specialised in extracting Preventive Maintenance (PM) schedules from maintenance documents, OEM equipment manuals, Standard Operating Procedures (SOPs), compliance/regulatory SOPs, and voice transcripts.
 
 Your sole job is to read the provided content and populate the MMM PM Creation Form — 10 fields total (6 mandatory, 4 optional) — PLUS two enrichment fields: priority and note.
 
@@ -520,31 +767,29 @@ Return ONLY valid JSON. No markdown. No explanation outside JSON.
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function generate() {
-  const apiKey  = (document.getElementById('api-key').value || '').trim();
-  if (!apiKey) {
+  const key = (document.getElementById('api-key').value||'').trim();
+  if (!key) {
     if (!apiPanelOpen) toggleApiPanel();
     document.getElementById('api-key').focus();
     document.getElementById('api-key').style.borderColor = '#dc2626';
-    setTimeout(() => document.getElementById('api-key').style.borderColor = '', 2000);
-    alert('Please enter your Claude API key first (top-right ⚙ API Key button).');
+    setTimeout(() => document.getElementById('api-key').style.borderColor='', 2000);
     return;
   }
-
-  const content = activeTab === 'pdf'
+  const content = activeTab==='pdf'
     ? pdfContent
     : document.getElementById('text-input').value.trim();
-  const source = activeTab === 'pdf'
+  const source  = activeTab==='pdf'
     ? pdfName
-    : (document.getElementById('source-label').value.trim() || 'Voice Input');
+    : (document.getElementById('src-label').value.trim()||'Voice Input');
 
   document.getElementById('gen-btn').disabled = true;
-  document.getElementById('loading').style.display = '';
-  document.getElementById('results').style.display = 'none';
+  document.getElementById('loading').style.display  = '';
+  document.getElementById('results').style.display  = 'none';
 
   const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const now   = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
 
-  const userMsg =
+  const msg =
 `TODAY_DATE   : ${today}
 CURRENT_TIME : ${now}
 SOURCE_NAME  : ${source}
@@ -559,21 +804,17 @@ ${content}
 Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
 
   try {
-    document.getElementById('loading-text').textContent = 'AI is reading the document…';
+    document.getElementById('load-txt').textContent = 'AI is reading the document…';
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key': apiKey,
+        'x-api-key': key,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userMsg }]
-      })
+      body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4096, system:SYS,
+        messages:[{ role:'user', content:msg }] })
     });
 
     if (!res.ok) {
@@ -581,106 +822,95 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
       throw new Error(e?.error?.message || `API error ${res.status}`);
     }
 
-    document.getElementById('loading-text').textContent = 'Building PM forms…';
+    document.getElementById('load-txt').textContent = 'Building PM forms…';
     const data = await res.json();
     let raw = data.content[0].text.trim();
     if (raw.startsWith('```')) raw = raw.replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
 
     apiResult = JSON.parse(raw);
-    pmStates  = {};
+    pmStates = {};
     (apiResult.pms||[]).forEach(pm => { pmStates[`pm${pm.pm_number}`] = 'pending'; });
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('gen-btn').disabled = false;
     renderResults();
-
   } catch(err) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('gen-btn').disabled = false;
-    alert(`Error: ${err.message}\n\nCheck your API key and try again.`);
+    alert(`Error: ${err.message}`);
   }
 }
 
-// ── Render results ─────────────────────────────────────────────────────────
+// ── Render ─────────────────────────────────────────────────────────────────
 function renderResults() {
   const r = apiResult;
   document.getElementById('results').style.display = '';
-
   const em = {High:'🟢',Medium:'🟡',Low:'🔴'};
-  document.getElementById('r-type').textContent  = r.document_type  || '—';
-  document.getElementById('r-conf').textContent  = (em[r.ai_confidence]||'⚪') + ' ' + (r.ai_confidence||'—');
+  document.getElementById('r-type').textContent  = r.document_type || '—';
+  document.getElementById('r-conf').textContent  = (em[r.ai_confidence]||'⚪')+' '+(r.ai_confidence||'—');
   document.getElementById('r-count').textContent = r.pm_count ?? 0;
 
   const rr = document.getElementById('r-reason');
-  if (r.confidence_reason) { rr.style.display=''; rr.textContent = 'ℹ️ ' + r.confidence_reason; }
+  if (r.confidence_reason) { rr.style.display=''; rr.textContent='ℹ️ '+r.confidence_reason; }
   else rr.style.display = 'none';
 
-  const ag = r.compliance_agencies_detected || [];
+  const ag = r.compliance_agencies_detected||[];
   const rc = document.getElementById('r-compliance');
-  if (ag.length) { rc.style.display=''; rc.innerHTML = `⚖️ <strong>Compliance detected:</strong> ${ag.join(', ')}`; }
-  else rc.style.display = 'none';
+  if (ag.length) { rc.style.display=''; rc.innerHTML=`⚖️ <strong>Compliance detected:</strong> ${ag.join(', ')}`; }
+  else rc.style.display='none';
 
-  const isZero = r.pm_count === 0;
-  document.getElementById('r-zero').style.display = isZero ? '' : 'none';
-  if (isZero) document.getElementById('r-zero-reason').textContent = r.no_pm_reason || '';
+  const zero = r.pm_count===0;
+  document.getElementById('r-zero').style.display = zero ? '' : 'none';
+  if (zero) document.getElementById('r-zero-reason').textContent = r.no_pm_reason||'';
 
-  const container = document.getElementById('pm-forms');
-  container.innerHTML = '';
-  if (!isZero) (r.pms||[]).forEach(pm => container.appendChild(buildPmCard(pm, r)));
+  const forms = document.getElementById('pm-forms');
+  forms.innerHTML = '';
+  if (!zero) (r.pms||[]).forEach(pm => forms.appendChild(buildCard(pm, r)));
 
   updateSummary();
-  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-// ── Build PM card ──────────────────────────────────────────────────────────
-function buildPmCard(pm, r) {
-  const n  = pm.pm_number;
-  const id = `pm${n}`;
-  const el = document.createElement('div');
-  el.id    = `card-${id}`;
-  el.className = 'pm-card';
+// ── PM card ────────────────────────────────────────────────────────────────
+function buildCard(pm, r) {
+  const n=pm.pm_number, id=`pm${n}`;
+  const el=document.createElement('div');
+  el.id=`card-${id}`; el.className='pm-card';
 
-  let desc = pm.description || '';
-  if (desc.length > 2000) desc = desc.slice(0,1950).trimEnd() + '\n[Truncated to 2,000 character limit]';
-  const pClass = {High:'badge-high',Medium:'badge-medium',Low:'badge-low'}[pm.priority]||'badge-medium';
+  let desc=pm.description||'';
+  if (desc.length>2000) desc=desc.slice(0,1950).trimEnd()+'\n[Truncated to 2,000 chars]';
+  const pc={High:'badge-high',Medium:'badge-medium',Low:'badge-low'}[pm.priority]||'badge-medium';
 
-  el.innerHTML = `
+  el.innerHTML=`
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
     <div>
       <h3 style="font-size:0.95rem;font-weight:700;color:#1a1a1a">PM #${n}</h3>
-      <span class="badge ${pClass}" style="margin-top:5px;display:inline-flex">${pm.priority||'Medium'} Priority</span>
+      <span class="badge ${pc}" style="margin-top:5px;display:inline-flex">${pm.priority||'Medium'} Priority</span>
     </div>
-    <span id="badge-${id}" class="badge" style="background:#fffde7;color:#856404;border:1px solid #fde047;white-space:nowrap;flex-shrink:0">🟡 Pending</span>
+    <span id="badge-${id}" class="badge badge-pend" style="white-space:nowrap;flex-shrink:0">🟡 Pending</span>
   </div>
 
-  ${r.frequency_gap ? `<div class="banner-amber" style="margin-bottom:12px">
-    ⚠️ <strong>Frequency not stated in document.</strong> ${esc(r.frequency_gap_note||'')}
-    Update <strong>Repeats</strong> before creating.
-  </div>`:''}
+  ${r.frequency_gap?`<div class="banner-amber">⚠️ <strong>Frequency not stated in document.</strong> ${esc(r.frequency_gap_note||'')} Update <strong>Repeats</strong> field before creating.</div>`:''}
 
   <div class="sec-div">⭐ Mandatory Fields</div>
-
-  <div class="banner-teal" style="margin-bottom:12px;font-size:0.8rem">
-    🏢 <strong>Assets:</strong> Not auto-populated — select the asset(s) manually in MMM after creating.
-  </div>
+  <div class="banner-teal" style="margin-bottom:12px;font-size:0.8rem">🏢 <strong>Assets:</strong> Not auto-populated — select the asset(s) manually in MMM after creating.</div>
 
   <div style="margin-bottom:10px">
     <div class="field-label">📝 Title <span class="field-req">*</span></div>
     <input id="${id}-title" type="text" class="field-input" value="${esc(pm.title||'')}">
-    <span class="ai-hint">🤖 ${esc(pm.title||'(none)')}</span>
+    <span class="ai-hint">🤖 AI suggestion: ${esc(pm.title||'(none)')}</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
     <div>
       <div class="field-label">🏷️ Category <span class="field-req">*</span></div>
-      <select id="${id}-category" class="field-input">
-        ${CATS.map(c=>`<option value="${c}"${c===pm.category?' selected':''}>${c}</option>`).join('')}
+      <select id="${id}-cat" class="field-input">
+        ${CATS.map(c=>`<option${c===pm.category?' selected':''}>${c}</option>`).join('')}
       </select>
-      <span class="ai-hint">🤖 ${esc(pm.category||'Other')}</span>
     </div>
     <div>
       <div class="field-label">🔁 Repeats <span class="field-req">*</span></div>
-      <input id="${id}-repeats" type="text" class="field-input"
+      <input id="${id}-rep" type="text" class="field-input"
         value="${esc((pm.repeats||'').includes('Not specified')?'':(pm.repeats||''))}"
         placeholder="e.g. Monthly — Every 1 Month, 1st">
       <span class="ai-hint">🤖 ${esc(pm.repeats||'(none)')}</span>
@@ -691,134 +921,113 @@ function buildPmCard(pm, r) {
     <div>
       <div class="field-label">📅 Start On <span class="field-req">*</span></div>
       <input id="${id}-start" type="text" class="field-input" value="${esc(pm.start_on||'')}">
-      <span class="ai-hint">🤖 ${esc(pm.start_on||'(none)')}</span>
     </div>
     <div>
       <div class="field-label">⏰ Create WO Time <span class="field-req">*</span></div>
-      <input id="${id}-wo-time" type="text" class="field-input" value="${esc(pm.create_wo_time||'')}">
-      <span class="ai-hint">🤖 ${esc(pm.create_wo_time||'(none)')}</span>
+      <input id="${id}-wo" type="text" class="field-input" value="${esc(pm.create_wo_time||'')}">
     </div>
   </div>
 
   <div class="sec-div">🔵 Optional Fields</div>
-
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
     <div>
       <div class="field-label">🔚 End After</div>
       <input id="${id}-end" type="text" class="field-input" value="${esc(pm.end_after==='Blank'?'':pm.end_after||'')}" placeholder="Blank">
-      <span class="ai-hint">🤖 ${esc(pm.end_after||'Blank')}</span>
     </div>
     <div>
       <div class="field-label">👤 Assign To</div>
-      <input id="${id}-assign" type="text" class="field-input" value="${esc(pm.assign_to==='Blank'?'':pm.assign_to||'')}" placeholder="Blank">
-      <span class="ai-hint">🤖 ${esc(pm.assign_to||'Blank')}</span>
+      <input id="${id}-asgn" type="text" class="field-input" value="${esc(pm.assign_to==='Blank'?'':pm.assign_to||'')}" placeholder="Blank">
     </div>
     <div>
       <div class="field-label">📎 Attachment</div>
-      <input id="${id}-attach" type="text" class="field-input" value="${esc(pm.add_attachment||'')}">
-      <span class="ai-hint">🤖 ${esc(pm.add_attachment||'(none)')}</span>
+      <input id="${id}-att" type="text" class="field-input" value="${esc(pm.add_attachment||'')}">
     </div>
   </div>
 
   <div class="sec-div">🎯 AI Enrichment</div>
-
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px">
     <div>
       <div class="field-label">🔺 Priority</div>
-      <select id="${id}-priority" class="field-input">
-        ${PRIS.map(p=>`<option value="${p}"${p===pm.priority?' selected':''}>${p}</option>`).join('')}
+      <select id="${id}-pri" class="field-input">
+        ${PRIS.map(p=>`<option${p===pm.priority?' selected':''}>${p}</option>`).join('')}
       </select>
-      <span class="ai-hint">🤖 ${esc(pm.priority||'Medium')}</span>
     </div>
     <div>
       <div class="field-label">📌 Note</div>
       <input id="${id}-note" type="text" class="field-input" value="${esc(pm.note||'')}" placeholder="e.g. Per 21 CFR 117.40 — Section 6.1">
-      <span class="ai-hint">🤖 ${esc(pm.note||'(none)')}</span>
     </div>
   </div>
 
   <div class="sec-div">📄 Description</div>
-  <textarea id="${id}-desc" class="field-input" rows="5" oninput="updateChar('${id}')">${esc(desc)}</textarea>
-  <div style="display:flex;justify-content:space-between;margin-top:3px;align-items:center">
-    <span class="ai-hint" style="margin:0">${esc(desc.slice(0,60))}${desc.length>60?'…':''}</span>
+  <textarea id="${id}-desc" class="field-input" rows="5" oninput="upChar('${id}')">${esc(desc)}</textarea>
+  <div style="display:flex;justify-content:space-between;margin-top:3px">
+    <span class="ai-hint" style="margin:0">${esc(desc.slice(0,55))}${desc.length>55?'…':''}</span>
     <span id="${id}-chars" style="font-size:0.7rem;color:#bbb">0 / 2,000</span>
   </div>
-  <div class="char-bar-wrap"><div id="${id}-charbar" class="char-bar" style="width:0%;background:#009688"></div></div>
-  <p id="${id}-char-err" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
+  <div class="char-bar-wrap"><div id="${id}-bar" class="char-bar" style="width:0%"></div></div>
+  <p id="${id}-cerr" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
 
-  ${pm.extraction_notes ? `<div class="banner-blue" style="margin-top:10px;margin-bottom:0">📌 ${esc(pm.extraction_notes)}</div>`:''}
+  ${pm.extraction_notes?`<div class="banner-blue" style="margin-top:10px;margin-bottom:0">📌 ${esc(pm.extraction_notes)}</div>`:''}
 
   <hr style="margin:16px 0;border:none;border-top:1px solid #f0f0f0">
   <div style="display:flex;gap:10px">
-    <button id="${id}-btn-create" class="btn-primary" onclick="setPmState('${id}','created')" style="flex:1">✅ Create PM</button>
-    <button class="btn-discard" onclick="setPmState('${id}','discarded')" style="flex:1">🗑️ Discard</button>
+    <button id="${id}-cbtn" class="btn-primary" onclick="setState('${id}','created')" style="padding:10px">✅ Create PM</button>
+    <button class="btn-discard" onclick="setState('${id}','discarded')" style="padding:10px;min-width:130px">🗑️ Discard</button>
   </div>`;
 
-  setTimeout(() => updateChar(id), 0);
+  setTimeout(()=>upChar(id),0);
   return el;
 }
 
-// ── PM state ───────────────────────────────────────────────────────────────
-function setPmState(id, state) {
+// ── State / summary ────────────────────────────────────────────────────────
+function setState(id, state) {
   pmStates[id] = state;
   const card  = document.getElementById(`card-${id}`);
-  const title = (card.querySelector(`#${id}-title`) || {}).value || id;
-
-  if (state === 'created') {
-    card.className = 'pm-card created';
-    card.innerHTML = `<div style="display:flex;align-items:center;gap:14px">
+  const title = (card.querySelector(`#${id}-title`)||{}).value || id;
+  if (state==='created') {
+    card.className='pm-card created';
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:14px">
       <span style="font-size:1.8rem">✅</span>
-      <div>
-        <p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
-        <p style="font-size:0.82rem;color:#009688;margin-top:3px">PM created. Assign asset(s) in MMM.</p>
-      </div>
-    </div>`;
+      <div><p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+      <p style="font-size:0.82rem;color:#009688;margin-top:3px">PM created. Assign asset(s) in MMM.</p></div></div>`;
   } else {
-    card.className = 'pm-card discarded';
-    card.innerHTML = `<div style="display:flex;align-items:center;gap:14px">
+    card.className='pm-card discarded';
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:14px">
       <span style="font-size:1.8rem">🗑️</span>
-      <div>
-        <p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
-        <p style="font-size:0.82rem;color:#dc2626;margin-top:3px">PM discarded.</p>
-      </div>
-    </div>`;
+      <div><p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+      <p style="font-size:0.82rem;color:#dc2626;margin-top:3px">PM discarded.</p></div></div>`;
   }
   updateSummary();
 }
-
-// ── Summary ────────────────────────────────────────────────────────────────
 function updateSummary() {
-  const vals = Object.values(pmStates);
-  const c = vals.filter(v=>v==='created').length;
-  const d = vals.filter(v=>v==='discarded').length;
-  const p = vals.filter(v=>v==='pending').length;
-  if (c + d > 0) {
-    document.getElementById('review-summary').style.display = '';
-    document.getElementById('s-created').textContent   = c;
-    document.getElementById('s-discarded').textContent = d;
-    document.getElementById('s-pending').textContent   = p;
+  const v=Object.values(pmStates);
+  const c=v.filter(x=>x==='created').length,
+        d=v.filter(x=>x==='discarded').length,
+        p=v.filter(x=>x==='pending').length;
+  if (c+d>0) {
+    document.getElementById('review-summary').style.display='';
+    document.getElementById('s-created').textContent=c;
+    document.getElementById('s-discarded').textContent=d;
+    document.getElementById('s-pending').textContent=p;
   }
 }
 
-// ── Char counter ───────────────────────────────────────────────────────────
-function updateChar(id) {
-  const ta = document.getElementById(`${id}-desc`);
-  if (!ta) return;
-  const len = ta.value.length;
-  const pct = Math.min(len/2000*100,100);
-  document.getElementById(`${id}-chars`).textContent = `${len.toLocaleString()} / 2,000`;
-  const bar = document.getElementById(`${id}-charbar`);
-  bar.style.width = pct+'%';
-  bar.style.background = pct<80?'#009688':pct<95?'#f59e0b':'#ef4444';
-  document.getElementById(`${id}-char-err`).style.display = len>2000?'':'none';
-  const btn = document.getElementById(`${id}-btn-create`);
-  if (btn) btn.disabled = len>2000;
+// ── Char bar ───────────────────────────────────────────────────────────────
+function upChar(id) {
+  const ta=document.getElementById(`${id}-desc`); if(!ta)return;
+  const len=ta.value.length, pct=Math.min(len/2000*100,100);
+  document.getElementById(`${id}-chars`).textContent=`${len.toLocaleString()} / 2,000`;
+  const bar=document.getElementById(`${id}-bar`);
+  bar.style.width=pct+'%';
+  bar.style.background=pct<80?'#009688':pct<95?'#f59e0b':'#ef4444';
+  document.getElementById(`${id}-cerr`).style.display=len>2000?'':'none';
+  const btn=document.getElementById(`${id}-cbtn`); if(btn) btn.disabled=len>2000;
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────
-function exportJSON() { dl(JSON.stringify(apiResult,null,2),`pm_schedule_${ts()}.json`,'application/json'); }
-function exportText() {
-  const lines = (apiResult.pms||[]).flatMap(pm => [
+function exportJSON(){ dl(JSON.stringify(apiResult,null,2),`pm_${ts()}.json`,'application/json'); }
+function exportText(){
+  const lines=(apiResult.pms||[]).flatMap(pm=>[
     `PM #${pm.pm_number} — ${pm.title}`,
     `  Priority   : ${pm.priority||'Medium'}`,
     `  Category   : ${pm.category}`,
@@ -827,21 +1036,16 @@ function exportText() {
     `  End After  : ${pm.end_after||'Blank'}`,
     `  Assign To  : ${pm.assign_to||'Blank'}`,
     `  Attachment : ${pm.add_attachment||''}`,
-    pm.note ? `  Note       : ${pm.note}` : null,
-    '','Description:', pm.description||'','','─'.repeat(60),''
+    pm.note?`  Note       : ${pm.note}`:null,
+    '','Description:',pm.description||'','','─'.repeat(60),''
   ].filter(l=>l!==null));
-  dl(lines.join('\n'),`pm_schedule_${ts()}.txt`,'text/plain');
+  dl(lines.join('\n'),`pm_${ts()}.txt`,'text/plain');
 }
-function dl(content,name,mime) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content],{type:mime}));
-  a.download = name; a.click();
-}
-function ts() { return new Date().toISOString().slice(0,16).replace(/[T:]/g,'').replace(/-/g,''); }
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function dl(c,n,m){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([c],{type:m})); a.download=n; a.click(); }
+function ts(){ return new Date().toISOString().slice(0,16).replace(/[T:]/g,'').replace(/-/g,''); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// init
 document.getElementById('text-input').addEventListener('input', updateGenBtn);
 </script>
 </body>
