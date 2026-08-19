@@ -318,7 +318,7 @@ textarea.field-input { resize: vertical; min-height: 90px; }
     <span id="api-panel-hint" style="font-size:0.74rem;color:#aaa">Stays in this browser tab only.</span>
     <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
       <span style="font-size:0.74rem;color:#aaa;white-space:nowrap">Base URL:</span>
-      <input id="api-base-url" type="text" value="https://api.anthropic.com"
+      <input id="api-base-url" type="text" value="https://litellm.sparkai.brightlysoftware.io"
              autocomplete="off" spellcheck="false"
              style="font-family:monospace;font-size:0.75rem;border:1px solid #e0e0e0;border-radius:6px;padding:5px 8px;outline:none;width:240px;background:#fff;color:#555;transition:border-color .15s">
     </div>
@@ -833,16 +833,16 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
 
   try {
     document.getElementById('load-txt').textContent = 'AI is reading the document…';
-    const baseUrl = (document.getElementById('api-base-url').value||'https://api.anthropic.com').replace(/\/+$/, '');
+    const baseUrl = (document.getElementById('api-base-url').value||'https://litellm.sparkai.brightlysoftware.io').replace(/\/+$/, '');
     const res = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        ...(baseUrl.includes('api.anthropic.com') ? {'anthropic-dangerous-direct-browser-access': 'true'} : {})
       },
-      body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4096, system:SYS,
+      body: JSON.stringify({ model:'sparkai-developer-claude', max_tokens:4096, system:SYS,
         messages:[{ role:'user', content:msg }] })
     });
 
