@@ -921,13 +921,12 @@ function renderResults() {
   document.getElementById('r-conf').textContent  = (em[r.ai_confidence]||'⚪')+' '+(r.ai_confidence||'—');
   document.getElementById('r-count').textContent = r.pm_count ?? 0;
 
-  const rr = document.getElementById('r-reason');
-  if (r.confidence_reason) { rr.style.display=''; rr.textContent='ℹ️ '+r.confidence_reason; }
-  else rr.style.display = 'none';
+  // Suppress verbose AI reasoning — keep header clean
+  document.getElementById('r-reason').style.display = 'none';
 
   const ag = r.compliance_agencies_detected||[];
   const rc = document.getElementById('r-compliance');
-  if (ag.length) { rc.style.display=''; rc.innerHTML=`⚖️ <strong>Compliance detected:</strong> ${ag.join(', ')}`; }
+  if (ag.length) { rc.style.display=''; rc.innerHTML=`⚖️ <strong>Compliance:</strong> ${ag.join(', ')}`; }
   else rc.style.display='none';
 
   const zero = r.pm_count===0;
@@ -950,104 +949,132 @@ function buildCard(pm, r) {
 
   let desc=pm.description||'';
   if (desc.length>2000) desc=desc.slice(0,1950).trimEnd()+'\n[Truncated to 2,000 chars]';
-  const pc={High:'badge-high',Medium:'badge-medium',Low:'badge-low'}[pm.priority]||'badge-medium';
+
+  // Determine which optional fields AI actually filled
+  const hasEnd   = pm.end_after  && pm.end_after  !== 'Blank' && pm.end_after.trim()  !== '';
+  const hasAsgn  = pm.assign_to  && pm.assign_to  !== 'Blank' && pm.assign_to.trim()  !== '';
+  const hasAtt   = pm.add_attachment && pm.add_attachment.trim() !== '';
+  const hasNote  = pm.note && pm.note.trim() !== '';
+  const freqVal  = (pm.repeats||'').replace(/Not specified.*/i,'').trim();
+  const startVal = pm.start_on||'';
+  const woVal    = pm.create_wo_time||'';
+
+  // Priority tab colours
+  const priColor = {High:'#dc2626',Medium:'#d97706',Low:'#2563eb'};
 
   el.innerHTML=`
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+  <!-- Card header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f0f0f0">
     <div>
-      <h3 style="font-size:0.95rem;font-weight:700;color:#1a1a1a">PM #${n}</h3>
-      <span class="badge ${pc}" style="margin-top:5px;display:inline-flex">${pm.priority||'Medium'} Priority</span>
+      <span style="font-size:0.75rem;font-weight:600;color:#009688;text-transform:uppercase;letter-spacing:.05em">PM Schedule #${n}</span>
+      <h3 id="${id}-title-disp" style="font-size:1rem;font-weight:700;color:#1a1a1a;margin-top:3px">${esc(pm.title||'Untitled PM')}</h3>
     </div>
-    <span id="badge-${id}" class="badge badge-pend" style="white-space:nowrap;flex-shrink:0">🟡 Pending</span>
+    <span id="badge-${id}" class="badge badge-pend" style="white-space:nowrap;flex-shrink:0">Pending</span>
   </div>
 
-  ${r.frequency_gap?`<div class="banner-amber">⚠️ <strong>Frequency not stated in document.</strong> ${esc(r.frequency_gap_note||'')} Update <strong>Repeats</strong> field before creating.</div>`:''}
+  ${r.frequency_gap&&!freqVal?`<div class="banner-amber" style="margin-bottom:12px">⚠️ Frequency not stated — update <strong>Repeats</strong> before creating.</div>`:''}
 
-  <div class="sec-div">⭐ Mandatory Fields</div>
-  <div class="banner-teal" style="margin-bottom:12px;font-size:0.8rem">🏢 <strong>Assets:</strong> Not auto-populated — select the asset(s) manually in MMM after creating.</div>
+  <!-- ROW 1: Asset + Title -->
+  <div style="margin-bottom:12px">
+    <div class="field-label">Asset <span class="field-req">*</span></div>
+    <select id="${id}-asset" class="field-input" style="color:#555">
+      <option value="">— Select asset —</option>
+      <option value="__other">Other (enter manually in MMM)</option>
+    </select>
+  </div>
 
-  <div style="margin-bottom:10px">
-    <div class="field-label">📝 Title <span class="field-req">*</span></div>
+  <div style="margin-bottom:12px">
+    <div class="field-label">Title <span class="field-req">*</span></div>
     <input id="${id}-title" type="text" class="field-input" value="${esc(pm.title||'')}">
-    <span class="ai-hint">🤖 AI suggestion: ${esc(pm.title||'(none)')}</span>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+  <!-- ROW 2: Category + Repeats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div>
-      <div class="field-label">🏷️ Category <span class="field-req">*</span></div>
+      <div class="field-label">Category <span class="field-req">*</span></div>
       <select id="${id}-cat" class="field-input">
         ${CATS.map(c=>`<option${c===pm.category?' selected':''}>${c}</option>`).join('')}
       </select>
     </div>
     <div>
-      <div class="field-label">🔁 Repeats <span class="field-req">*</span></div>
-      <input id="${id}-rep" type="text" class="field-input"
-        value="${esc((pm.repeats||'').includes('Not specified')?'':(pm.repeats||''))}"
-        placeholder="e.g. Monthly — Every 1 Month, 1st">
-      <span class="ai-hint">🤖 ${esc(pm.repeats||'(none)')}</span>
+      <div class="field-label">Repeats <span class="field-req">*</span></div>
+      <input id="${id}-rep" type="text" class="field-input" value="${esc(freqVal)}" placeholder="e.g. Every 1 Month">
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+  <!-- ROW 3: Start On + Create WO Time -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div>
-      <div class="field-label">📅 Start On <span class="field-req">*</span></div>
-      <input id="${id}-start" type="text" class="field-input" value="${esc(pm.start_on||'')}">
+      <div class="field-label">Start On <span class="field-req">*</span></div>
+      <input id="${id}-start" type="text" class="field-input" value="${esc(startVal)}" placeholder="e.g. 2025-01-01">
     </div>
     <div>
-      <div class="field-label">⏰ Create WO Time <span class="field-req">*</span></div>
-      <input id="${id}-wo" type="text" class="field-input" value="${esc(pm.create_wo_time||'')}">
-    </div>
-  </div>
-
-  <div class="sec-div">🔵 Optional Fields</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-    <div>
-      <div class="field-label">🔚 End After</div>
-      <input id="${id}-end" type="text" class="field-input" value="${esc(pm.end_after==='Blank'?'':pm.end_after||'')}" placeholder="Blank">
-    </div>
-    <div>
-      <div class="field-label">👤 Assign To</div>
-      <input id="${id}-asgn" type="text" class="field-input" value="${esc(pm.assign_to==='Blank'?'':pm.assign_to||'')}" placeholder="Blank">
-    </div>
-    <div>
-      <div class="field-label">📎 Attachment</div>
-      <input id="${id}-att" type="text" class="field-input" value="${esc(pm.add_attachment||'')}">
+      <div class="field-label">Create WO Time <span class="field-req">*</span></div>
+      <input id="${id}-wo" type="text" class="field-input" value="${esc(woVal)}" placeholder="e.g. 7 days before">
     </div>
   </div>
 
-  <div class="sec-div">🎯 AI Enrichment</div>
-  <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px">
-    <div>
-      <div class="field-label">🔺 Priority</div>
-      <select id="${id}-pri" class="field-input">
-        ${PRIS.map(p=>`<option${p===pm.priority?' selected':''}>${p}</option>`).join('')}
-      </select>
+  <!-- Priority tab selector -->
+  <div style="margin-bottom:12px">
+    <div class="field-label">Priority</div>
+    <div style="display:flex;gap:0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;width:fit-content">
+      ${PRIS.map(p=>{
+        const active=p===(pm.priority||'Medium');
+        const col=priColor[p]||'#555';
+        return `<button type="button" id="${id}-pri-${p}"
+          onclick="setPri('${id}','${p}')"
+          style="padding:7px 18px;font-size:0.8rem;font-weight:600;border:none;cursor:pointer;
+            background:${active?col:'#fff'};color:${active?'#fff':col};
+            border-right:1px solid #e5e7eb;transition:background .15s,color .15s"
+          >${p}</button>`;
+      }).join('')}
     </div>
-    <div>
-      <div class="field-label">📌 Note</div>
-      <input id="${id}-note" type="text" class="field-input" value="${esc(pm.note||'')}" placeholder="e.g. Per 21 CFR 117.40 — Section 6.1">
-    </div>
+    <input type="hidden" id="${id}-pri" value="${esc(pm.priority||'Medium')}">
   </div>
 
-  <div class="sec-div">📄 Description</div>
-  <textarea id="${id}-desc" class="field-input" rows="5" oninput="upChar('${id}')">${esc(desc)}</textarea>
-  <div style="display:flex;justify-content:space-between;margin-top:3px">
-    <span class="ai-hint" style="margin:0">${esc(desc.slice(0,55))}${desc.length>55?'…':''}</span>
-    <span id="${id}-chars" style="font-size:0.7rem;color:#bbb">0 / 2,000</span>
+  <!-- Description -->
+  <div style="margin-bottom:4px">
+    <div class="field-label">Description</div>
+    <textarea id="${id}-desc" class="field-input" rows="4" oninput="upChar('${id}')">${esc(desc)}</textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:2px">
+      <span id="${id}-chars" style="font-size:0.7rem;color:#bbb">0 / 2,000</span>
+    </div>
+    <div class="char-bar-wrap"><div id="${id}-bar" class="char-bar" style="width:0%"></div></div>
+    <p id="${id}-cerr" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
   </div>
-  <div class="char-bar-wrap"><div id="${id}-bar" class="char-bar" style="width:0%"></div></div>
-  <p id="${id}-cerr" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
 
-  ${pm.extraction_notes?`<div class="banner-blue" style="margin-top:10px;margin-bottom:0">📌 ${esc(pm.extraction_notes)}</div>`:''}
+  <!-- Optional fields — only show if AI populated them; otherwise small muted hint -->
+  ${hasAsgn||hasEnd||hasAtt||hasNote?`
+  <div style="display:grid;grid-template-columns:${[hasAsgn,hasEnd,hasAtt].filter(Boolean).length>1?'1fr 1fr':'1fr'};gap:12px;margin-top:12px;margin-bottom:12px">
+    ${hasAsgn?`<div><div class="field-label">Assign To</div><input id="${id}-asgn" type="text" class="field-input" value="${esc(pm.assign_to)}"></div>`:''}
+    ${hasEnd ?`<div><div class="field-label">End After</div><input id="${id}-end"  type="text" class="field-input" value="${esc(pm.end_after)}"></div>`:''}
+    ${hasAtt ?`<div><div class="field-label">Attachment</div><input id="${id}-att" type="text" class="field-input" value="${esc(pm.add_attachment)}"></div>`:''}
+  </div>
+  ${hasNote?`<div style="margin-bottom:12px"><div class="field-label">Note</div><input id="${id}-note" type="text" class="field-input" value="${esc(pm.note)}"></div>`:''}
+  `:`<p style="font-size:0.72rem;color:#bbb;margin:10px 0 12px">Assign To · End After · Attachment not extracted — fill manually if needed.</p>`}
 
-  <hr style="margin:16px 0;border:none;border-top:1px solid #f0f0f0">
+  <!-- Actions -->
+  <hr style="margin:14px 0 14px;border:none;border-top:1px solid #f0f0f0">
   <div style="display:flex;gap:10px">
-    <button id="${id}-cbtn" class="btn-primary" onclick="setState('${id}','created')" style="padding:10px">✅ Create PM</button>
-    <button class="btn-discard" onclick="setState('${id}','discarded')" style="padding:10px;min-width:130px">🗑️ Discard</button>
+    <button id="${id}-cbtn" class="btn-primary" onclick="setState('${id}','created')" style="padding:10px 22px">✅ Create PM</button>
+    <button class="btn-discard" onclick="setState('${id}','discarded')" style="padding:10px 18px">Discard</button>
   </div>`;
 
   setTimeout(()=>upChar(id),0);
   return el;
+}
+
+// ── Priority tab toggle ─────────────────────────────────────────────────────
+const _priCol = {High:'#dc2626',Medium:'#d97706',Low:'#2563eb'};
+function setPri(id, val) {
+  document.getElementById(`${id}-pri`).value = val;
+  ['High','Medium','Low'].forEach(p => {
+    const btn = document.getElementById(`${id}-pri-${p}`);
+    if (!btn) return;
+    const active = p === val;
+    btn.style.background = active ? _priCol[p] : '#fff';
+    btn.style.color       = active ? '#fff'     : _priCol[p];
+  });
 }
 
 // ── State / summary ────────────────────────────────────────────────────────
