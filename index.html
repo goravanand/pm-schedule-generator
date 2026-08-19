@@ -904,9 +904,26 @@ ${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
       errBanner.style.display = '';
       errBanner.scrollIntoView({ behavior:'smooth', block:'nearest' });
     } else {
-      // Network / parse errors
-      errBanner.innerHTML = `⚠️ <strong>Unexpected error</strong> — ${esc(err.message)}<br>
-        This is usually a malformed PDF (try copy-pasting the text into the text tab instead) or a network interruption. Check the Base URL in ⚙️ Settings and try again.`;
+      // Detect specific error types for better guidance
+      const msg = (err.message||'').toLowerCase();
+      let html = '';
+      if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('network request failed') || msg.includes('load failed')) {
+        html = `🌐 <strong>Network error — could not reach the API</strong><br>
+          Most likely causes:<br>
+          &nbsp;• <strong>VPN / corporate network</strong> — try connecting to the Siemens VPN or switching networks<br>
+          &nbsp;• <strong>Wrong Base URL</strong> — click ⚙️ and confirm it is <code>https://litellm.sparkai.brightlysoftware.io</code><br>
+          &nbsp;• <strong>API endpoint is down</strong> — wait a moment and try again<br>
+          &nbsp;• <strong>Browser CORS block</strong> — the endpoint may not allow direct browser requests from this origin`;
+      } else if (msg.includes('json') || msg.includes('syntax') || msg.includes('unexpected token') || msg.includes('unterminated')) {
+        html = `📄 <strong>AI returned invalid JSON</strong> — ${esc(err.message)}<br>
+          This can happen with very large or complex documents.<br>
+          &nbsp;• Try copy-pasting just the relevant section into the <strong>Text tab</strong><br>
+          &nbsp;• Or shorten the document and try again`;
+      } else {
+        html = `⚠️ <strong>Unexpected error</strong> — ${esc(err.message)}<br>
+          Check your network connection and the Base URL in ⚙️ Settings, then try again.`;
+      }
+      errBanner.innerHTML = html;
       errBanner.style.display = '';
       errBanner.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
