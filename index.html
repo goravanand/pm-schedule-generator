@@ -776,7 +776,7 @@ EXCLUDE: Breakdown/corrective tasks; one-time installation; purely conditional t
 SECTION 3 — THE 10 PM CREATION FORM FIELDS
 ════════════════════════════════════════════════════
 
-FIELD 1 — Assets: "Not auto-populated — user selects manually in MMM"
+FIELD 1 — Assets: For VOICE input — extract the asset name exactly as spoken (e.g. "Chiller Unit 3", "Conveyor Belt B"). For DOCUMENT upload — set to empty string "" (user selects manually). Never invent an asset name not spoken or written in the source.
 FIELD 2 — Title: [Task Type] — [Equipment/Area/Scope]
 FIELD 3 — Category: Calibration | Cleaning/Sanitation | Compliance | Inspection | Other | Preventive Maintenance | Process Improvement | Projects | Safety
 FIELD 4 — Repeats: "[Frequency] — Every [N] [Unit], [Day/Date]". If "periodically" → "⚠️ Not specified in document — user must set frequency"
@@ -804,7 +804,7 @@ SECTION 5 — OUTPUT FORMAT
 ════════════════════════════════════════════════════
 
 Return ONLY valid JSON. No markdown. No explanation outside JSON.
-{"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"Not auto-populated — user selects manually in MMM","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","description_char_count":0,"extraction_notes":""}]}`;
+{"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","description_char_count":0,"extraction_notes":""}]}`;
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function generate() {
@@ -972,10 +972,19 @@ function buildCard(pm, r) {
   <!-- ROW 1: Asset + Title -->
   <div style="margin-bottom:12px">
     <div class="field-label">Asset <span class="field-req">*</span></div>
+    ${pm.assets && pm.assets.trim() !== '' ? `
+    <input id="${id}-asset" type="text" class="field-input"
+      value="${esc(pm.assets)}"
+      style="border-color:#009688;background:#f0faf9"
+      placeholder="AI suggested — confirm or update in MMM">
+    <span style="font-size:0.72rem;color:#009688;margin-top:3px;display:block">🤖 AI suggested from voice — confirm asset exists in MMM before creating</span>
+    ` : `
     <select id="${id}-asset" class="field-input" style="color:#555">
-      <option value="">— Select asset —</option>
+      <option value="">— Select asset in MMM —</option>
       <option value="__other">Other (enter manually in MMM)</option>
     </select>
+    <span style="font-size:0.72rem;color:#888;margin-top:3px;display:block">Mention asset name in your voice input to auto-suggest</span>
+    `}
   </div>
 
   <div style="margin-bottom:12px">
