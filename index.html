@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -683,6 +683,22 @@ function handleDrop(e) {
   if (f) handleFile(f);
 }
 
+// ── Text sanitiser ─────────────────────────────────────────────────────────
+// PDF.js can emit null bytes, lone surrogates, and other control characters
+// that silently corrupt the JSON request body or the API response.
+function sanitizeDoc(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/\x00/g, '')                              // null bytes
+    .replace(/[\uD800-\uDFFF]/g, '')                   // lone surrogates (invalid UTF-16)
+    .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')// other control chars (keep tab/newline/CR)
+    .replace(/[ \t]+/g, ' ')                           // collapse spaces/tabs
+    .replace(/\n{3,}/g, '\n\n')                        // collapse excess blank lines
+    .slice(0, 80000)                                   // hard cap (~60k tokens)
+    .trim();
+
+}
+
 // ── PDF ────────────────────────────────────────────────────────────────────
 async function handleFile(file) {
   if (!file || file.type !== 'application/pdf') { alert('Please upload a PDF.'); return; }
@@ -698,7 +714,7 @@ async function handleFile(file) {
       const items = (await (await pdf.getPage(i)).getTextContent()).items;
       txt += items.map(it => it.str).join(' ') + '\n';
     }
-    pdfContent = txt.trim();
+    pdfContent = sanitizeDoc(txt.trim());
     fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
     document.getElementById('pdf-prev').style.display = '';
     document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
@@ -800,9 +816,9 @@ async function generate() {
     setTimeout(() => document.getElementById('api-key').style.borderColor='', 2000);
     return;
   }
-  const content = activeTab==='pdf'
+  const content = sanitizeDoc(activeTab==='pdf'
     ? pdfContent
-    : document.getElementById('text-input').value.trim();
+    : document.getElementById('text-input').value.trim());
   const source  = activeTab==='pdf'
     ? pdfName
     : (document.getElementById('src-label').value.trim()||'Voice Input');
@@ -842,7 +858,7 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
         'content-type': 'application/json',
         ...(baseUrl.includes('api.anthropic.com') ? {'anthropic-dangerous-direct-browser-access': 'true'} : {})
       },
-      body: JSON.stringify({ model:'sparkai-developer-claude', max_tokens:4096, system:SYS,
+      body: JSON.stringify({ model:'sparkai-developer-claude', max_tokens:8192, system:SYS,
         messages:[{ role:'user', content:msg }] })
     });
 
@@ -889,7 +905,7 @@ ${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
     } else {
       // Network / parse errors
       errBanner.innerHTML = `⚠️ <strong>Unexpected error</strong> — ${esc(err.message)}<br>
-        Check your internet connection. If using a corporate network, direct calls to api.anthropic.com may be blocked.`;
+        This is usually a malformed PDF (try copy-pasting the text into the text tab instead) or a network interruption. Check the Base URL in ⚙️ Settings and try again.`;
       errBanner.style.display = '';
       errBanner.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
