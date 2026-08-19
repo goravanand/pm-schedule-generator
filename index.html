@@ -307,17 +307,21 @@ textarea.field-input { resize: vertical; min-height: 90px; }
 
   <!-- ── API key panel ─────────────────────────────────────────────────── -->
   <div id="api-panel">
-    <span id="api-panel-label">🔑 Claude API Key</span>
+    <span id="api-panel-label">🔑 API Key</span>
     <div style="display:flex;align-items:center;gap:0;flex:0 0 auto">
       <input id="api-key" type="password" placeholder="Paste your API key here"
              oninput="onKeyInput()" autocomplete="off" spellcheck="false"
-             style="font-family:monospace;font-size:0.82rem;border:1px solid #e0e0e0;border-radius:6px 0 0 6px;padding:6px 10px;outline:none;width:340px;background:#fff;border-right:none;transition:border-color .15s">
+             style="font-family:monospace;font-size:0.82rem;border:1px solid #e0e0e0;border-radius:6px 0 0 6px;padding:6px 10px;outline:none;width:280px;background:#fff;border-right:none;transition:border-color .15s">
       <button onclick="toggleKeyVis()" id="eye-btn" title="Show/hide key"
               style="border:1px solid #e0e0e0;border-radius:0 6px 6px 0;padding:6px 9px;background:#f9f9f9;cursor:pointer;font-size:0.82rem;color:#888;transition:all .15s">👁</button>
     </div>
     <span id="api-panel-hint" style="font-size:0.74rem;color:#aaa">Stays in this browser tab only.</span>
-    <a id="api-panel-link" href="https://console.anthropic.com/api-keys" target="_blank"
-       style="font-size:0.74rem;color:#009688;text-decoration:none;white-space:nowrap;margin-left:auto">Get a key →</a>
+    <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+      <span style="font-size:0.74rem;color:#aaa;white-space:nowrap">Base URL:</span>
+      <input id="api-base-url" type="text" value="https://api.anthropic.com"
+             autocomplete="off" spellcheck="false"
+             style="font-family:monospace;font-size:0.75rem;border:1px solid #e0e0e0;border-radius:6px;padding:5px 8px;outline:none;width:240px;background:#fff;color:#555;transition:border-color .15s">
+    </div>
   </div>
 
   <!-- ══ BODY ═════════════════════════════════════════════════════════════ -->
@@ -829,7 +833,8 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
 
   try {
     document.getElementById('load-txt').textContent = 'AI is reading the document…';
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const baseUrl = (document.getElementById('api-base-url').value||'https://api.anthropic.com').replace(/\/+$/, '');
+    const res = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'x-api-key': key,
@@ -846,9 +851,10 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
       const apiMsg = e?.error?.message || '';
       let friendly = '';
       if (res.status === 401) {
-        friendly = `❌ <strong>Invalid API key (401)</strong><br>
-The key was rejected. Click <strong>👁</strong> next to the key field to reveal it and check for extra spaces or cut-off characters.
-${apiMsg ? `<br><em>${apiMsg}</em>` : ''}`;
+        friendly = `❌ <strong>Authentication failed (401)</strong> — the key was rejected by the endpoint.<br>
+• Click <strong>👁</strong> to reveal the key and check for extra spaces.<br>
+• If using a custom endpoint, verify the <strong>Base URL</strong> matches your API gateway.
+${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
       } else if (res.status === 429) {
         friendly = `⏳ <strong>Rate limited (429)</strong> — too many requests. Wait 30 seconds and try again.${apiMsg?'<br><em>'+apiMsg+'</em>':''}`;
       } else if (res.status === 403) {
