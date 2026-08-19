@@ -309,7 +309,7 @@ textarea.field-input { resize: vertical; min-height: 90px; }
   <div id="api-panel">
     <span id="api-panel-label">🔑 Claude API Key</span>
     <div style="display:flex;align-items:center;gap:0;flex:0 0 auto">
-      <input id="api-key" type="password" placeholder="sk-ant-api03-… or sk-ant-api04-…"
+      <input id="api-key" type="password" placeholder="Paste your API key here"
              oninput="onKeyInput()" autocomplete="off" spellcheck="false"
              style="font-family:monospace;font-size:0.82rem;border:1px solid #e0e0e0;border-radius:6px 0 0 6px;padding:6px 10px;outline:none;width:340px;background:#fff;border-right:none;transition:border-color .15s">
       <button onclick="toggleKeyVis()" id="eye-btn" title="Show/hide key"
@@ -642,16 +642,9 @@ function toggleApiPanel() {
 function onKeyInput() {
   const key = (document.getElementById('api-key').value||'').trim();
   const hint = document.getElementById('api-panel-hint');
-  if (key.length > 20) {
-    const ok = key.startsWith('sk-ant-');
-    hint.innerHTML = ok
-      ? `✅ <span style="color:#009688">Key entered (${key.length} chars)</span>`
-      : `⚠️ <span style="color:#d97706">Key doesn't start with <code>sk-ant-</code> — double-check</span>`;
-  } else if (key.length > 0) {
-    hint.innerHTML = `<span style="color:#d97706">Key seems short (${key.length} chars) — make sure you copied the full key</span>`;
-  } else {
-    hint.textContent = 'Stays in this browser tab only.';
-  }
+  hint.innerHTML = key.length > 0
+    ? '✅ <span style="color:#009688">Key entered</span>'
+    : 'Stays in this browser tab only.';
   // Hide any previous error when user edits the key
   document.getElementById('api-error-banner').style.display = 'none';
   updateGenBtn();
@@ -854,13 +847,8 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
       let friendly = '';
       if (res.status === 401) {
         friendly = `❌ <strong>Invalid API key (401)</strong><br>
-The key you entered was rejected by Anthropic.<br>
-<ul style="margin:6px 0 0 16px;padding:0;line-height:2">
-  <li>Click <strong>👁 Show</strong> next to the key field and check for extra spaces or missing characters.</li>
-  <li>Make sure you copied the <em>full</em> key — it starts with <code>sk-ant-api03-</code> or <code>sk-ant-api04-</code> and is ~100 chars long.</li>
-  <li>Verify the key is still active at <a href="https://console.anthropic.com/api-keys" target="_blank" style="color:#009688">console.anthropic.com/api-keys</a>.</li>
-</ul>
-${apiMsg ? `<br>API response: <em>${apiMsg}</em>` : ''}`;
+The key was rejected. Click <strong>👁</strong> next to the key field to reveal it and check for extra spaces or cut-off characters.
+${apiMsg ? `<br><em>${apiMsg}</em>` : ''}`;
       } else if (res.status === 429) {
         friendly = `⏳ <strong>Rate limited (429)</strong> — too many requests. Wait 30 seconds and try again.${apiMsg?'<br><em>'+apiMsg+'</em>':''}`;
       } else if (res.status === 403) {
