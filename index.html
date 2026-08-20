@@ -699,7 +699,7 @@ function sanitizeDoc(text) {
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')// other control chars (keep tab/newline/CR)
     .replace(/[ \t]+/g, ' ')                           // collapse spaces/tabs
     .replace(/\n{3,}/g, '\n\n')                        // collapse excess blank lines
-    .slice(0, 80000)                                   // hard cap (~60k tokens)
+    .slice(0, 25000)                                   // hard cap (~18k tokens) — prevents OOM
     .trim();
 
 }
@@ -713,14 +713,19 @@ async function handleFile(file) {
   fi.textContent = `📄 ${file.name} — ${(file.size/1024).toFixed(1)} KB — extracting text…`;
   try {
     const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pdf = await pdfjsLib.getDocument({ data: buf, disableFontFace: true, disableRange: true }).promise;
+    const MAX_PAGES = Math.min(pdf.numPages, 60); // cap at 60 pages to avoid OOM
     let txt = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const items = (await (await pdf.getPage(i)).getTextContent()).items;
+    for (let i = 1; i <= MAX_PAGES; i++) {
+      const page  = await pdf.getPage(i);
+      const items = (await page.getTextContent()).items;
       txt += items.map(it => it.str).join(' ') + '\n';
+      page.cleanup(); // release page resources immediately
     }
+    pdf.destroy(); // free PDF.js memory after extraction
     pdfContent = sanitizeDoc(txt.trim());
-    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
+    const truncated = pdf.numPages > MAX_PAGES ? ` (first ${MAX_PAGES} of ${pdf.numPages} pages)` : '';
+    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted${truncated}`;
     document.getElementById('pdf-prev').style.display = '';
     document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
   } catch {
