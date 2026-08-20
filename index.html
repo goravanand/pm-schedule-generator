@@ -1,0 +1,1318 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI PM Schedule Generator — MMM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Inter', sans-serif; background: #f0f0f0; }
+
+/* ═══════════════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════════════ */
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Top bar ── */
+#topbar {
+  flex: 0 0 54px; background: #fff; border-bottom: 1px solid #e0e0e0;
+  display: flex; align-items: center; padding: 0 24px; gap: 14px; z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.siemens-logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .15em; color: #000; flex-shrink: 0; }
+.tb-divider   { width: 1px; height: 22px; background: #d0d0d0; flex-shrink: 0; }
+.tb-org       { font-size: 0.875rem; font-weight: 400; color: #333; }
+.tb-search    {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  border: 1px solid #d0d0d0; border-radius: 999px; padding: 5px 14px;
+  background: #f9f9f9; color: #999; font-size: 0.82rem; min-width: 200px;
+}
+.tb-search svg { flex-shrink: 0; }
+.tb-gear {
+  margin-left: 10px; cursor: pointer; padding: 6px; border-radius: 7px;
+  border: 1px solid #d0d0d0; background: #fafafa; color: #888;
+  display: flex; align-items: center; gap: 5px; font-size: 0.75rem;
+  white-space: nowrap; transition: all .15s; user-select: none;
+}
+.tb-gear:hover { background: #f0f0f0; color: #555; }
+
+/* ── API panel ── */
+#api-panel {
+  display: none; flex-shrink: 0; background: #fffbeb;
+  border-bottom: 1px solid #fde68a; padding: 9px 24px;
+  align-items: center; gap: 12px; z-index: 99;
+}
+#api-panel input {
+  font-family: monospace; font-size: 0.82rem; border: 1px solid #e0e0e0;
+  border-radius: 6px; padding: 6px 10px; outline: none; width: 340px;
+  transition: border-color .15s; background: #fff;
+}
+#api-panel input:focus { border-color: #009688; }
+#api-panel-label { font-size: 0.82rem; font-weight: 500; color: #92400e; white-space: nowrap; }
+#api-panel-hint  { font-size: 0.74rem; color: #aaa; }
+#api-panel-link  { font-size: 0.74rem; color: #009688; text-decoration: none; white-space: nowrap; margin-left: auto; }
+
+/* ── Body row (sidebar + content) ── */
+#body { display: flex; flex: 1; overflow: hidden; }
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════ */
+#sidebar {
+  width: 250px; flex-shrink: 0; background: #fff; border-right: 1px solid #e4e4e4;
+  display: flex; flex-direction: column; padding: 14px 12px; gap: 4px;
+  overflow-y: auto; transition: width .2s;
+}
+#sidebar.collapsed { width: 56px; }
+
+.sb-collapse {
+  align-self: flex-end; background: none; border: none; cursor: pointer;
+  color: #999; padding: 4px 6px; border-radius: 6px; margin-bottom: 6px;
+  transition: all .15s;
+}
+.sb-collapse:hover { background: #f5f5f5; color: #333; }
+
+.sb-get-started {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border: 2px solid #009688; border-radius: 999px; background: none;
+  color: #009688; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  width: 100%; margin-bottom: 6px; transition: all .15s; font-family: inherit;
+  white-space: nowrap; overflow: hidden;
+}
+.sb-get-started:hover { background: #f0faf9; }
+#sidebar.collapsed .sb-get-started { justify-content: center; padding: 9px 0; }
+#sidebar.collapsed .sb-label       { display: none; }
+
+.sb-create {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 12px; border-radius: 999px; background: #009688;
+  color: #fff; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  width: 100%; border: none; margin-bottom: 12px; transition: all .15s;
+  font-family: inherit; white-space: nowrap; overflow: hidden;
+}
+.sb-create:hover { background: #00796b; }
+
+.sb-divider { height: 1px; background: #f0f0f0; margin: 4px 0 8px; }
+
+.sb-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: 8px; cursor: pointer; font-size: 0.875rem; color: #333;
+  font-weight: 400; transition: all .15s; white-space: nowrap; overflow: hidden;
+  border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+}
+.sb-item:hover    { background: #f5f5f5; }
+.sb-item.active   { background: #e8f5f3; color: #009688; font-weight: 500; }
+.sb-item svg      { flex-shrink: 0; }
+.sb-item .chevron { margin-left: auto; flex-shrink: 0; }
+#sidebar.collapsed .sb-item { justify-content: center; }
+
+/* ═══════════════════════════════════════════════════════
+   CONTENT AREA
+═══════════════════════════════════════════════════════ */
+#content { flex: 1; overflow-y: auto; background: #f0f0f0; }
+
+/* ─── HOME VIEW ─── */
+#view-home { padding: 40px 48px; max-width: 900px; }
+.home-greeting { font-size: 1.6rem; font-weight: 700; color: #1a1a1a; margin-bottom: 28px; }
+
+.home-feature-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 14px;
+  padding: 28px 32px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.home-feature-card-top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.home-card-icon { font-size: 2rem; flex-shrink: 0; margin-top: 2px; }
+.home-card-body h2 { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.home-card-body p  { font-size: 0.875rem; color: #666; line-height: 1.65; }
+
+.badge-ar {
+  font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: #e8f5f3; color: #00695c; border: 1px solid #b2dfdb; white-space: nowrap;
+}
+.btn-create-large {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #009688; color: #fff; border: none; border-radius: 10px;
+  padding: 12px 26px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background .15s; font-family: inherit;
+}
+.btn-create-large:hover { background: #00796b; }
+
+.home-doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 6px; }
+.home-doc-card {
+  background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 10px;
+  padding: 18px 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.home-doc-card .doc-icon { font-size: 1.4rem; }
+.home-doc-card h4 { font-size: 0.875rem; font-weight: 600; color: #1a1a1a; }
+.home-doc-card p  { font-size: 0.78rem; color: #888; line-height: 1.5; }
+
+/* ─── CREATE VIEW ─── */
+#view-create { padding: 28px 40px 60px; max-width: 860px; }
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px; font-size: 0.78rem;
+  color: #aaa; margin-bottom: 22px;
+}
+.breadcrumb a { color: #009688; text-decoration: none; cursor: pointer; }
+.breadcrumb a:hover { text-decoration: underline; }
+
+/* ─── CARDS ─── */
+.card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+  padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-title {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: #aaa; margin-bottom: 14px;
+  padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+}
+
+/* ── Tabs ── */
+.tab-row { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 16px; }
+.tab-btn {
+  padding: 8px 18px; font-size: 0.85rem; cursor: pointer; border: none;
+  background: transparent; border-bottom: 3px solid transparent;
+  color: #888; font-weight: 500; transition: all .15s; font-family: inherit;
+}
+.tab-btn.active { border-bottom-color: #009688; color: #009688; }
+.tab-btn:hover:not(.active) { color: #444; background: #fafafa; }
+
+/* ── Drop zone ── */
+.drop-zone {
+  border: 2px dashed #d0d0d0; border-radius: 10px; padding: 36px 20px;
+  text-align: center; cursor: pointer; transition: all .15s; background: #fafafa;
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color: #009688; background: #f0faf9; }
+
+/* ── Fields ── */
+.field-label { font-size: 0.8rem; font-weight: 500; color: #444; margin-bottom: 4px; }
+.field-req   { color: #dc2626; }
+.ai-hint     { font-size: 0.69rem; color: #bbb; font-style: italic; margin-top: 3px; display: block; }
+.field-input {
+  width: 100%; border: 1px solid #d0d0d0; border-radius: 7px;
+  padding: 7px 10px; font-size: 0.85rem; outline: none; font-family: inherit;
+  color: #222; background: white; transition: border-color .15s;
+}
+.field-input:focus { border-color: #009688; box-shadow: 0 0 0 3px rgba(0,150,136,.1); }
+select.field-input { cursor: pointer; }
+textarea.field-input { resize: vertical; min-height: 90px; }
+
+/* ── Buttons ── */
+.btn-primary {
+  background: #009688; color: #fff; border: none; border-radius: 8px;
+  padding: 11px 24px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  transition: background .15s; font-family: inherit; width: 100%;
+}
+.btn-primary:hover    { background: #00796b; }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-secondary {
+  background: #fff; color: #555; border: 1px solid #d0d0d0; border-radius: 8px;
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+  transition: all .15s; font-family: inherit;
+}
+.btn-secondary:hover { background: #f5f5f5; }
+.btn-discard {
+  background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px;
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+  transition: all .15s; font-family: inherit;
+}
+.btn-discard:hover { background: #fef2f2; }
+
+/* ── Spinner ── */
+.spin { animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Metrics ── */
+.metrics-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+.metric-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+  padding: 14px 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.03);
+}
+.metric-label { font-size: 0.67rem; text-transform: uppercase; letter-spacing: .07em; color: #bbb; margin-bottom: 5px; }
+.metric-val   { font-size: 0.9rem; font-weight: 600; color: #222; }
+.metric-val.lg { font-size: 1.9rem; font-weight: 700; color: #009688; }
+
+/* ── PM card ── */
+.pm-card {
+  background: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #009688;
+  border-radius: 10px; padding: 22px 24px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.pm-card.created   { border-left-color: #22c55e; }
+.pm-card.discarded { border-left-color: #ef4444; opacity: .65; }
+
+.sec-div {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: #ccc; margin: 14px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;
+}
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; padding: 2px 10px;
+         border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+.badge-high   { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+.badge-medium { background:#fffbeb; color:#d97706; border:1px solid #fde68a; }
+.badge-low    { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+.badge-pend   { background:#fffde7; color:#856404; border:1px solid #fde047; }
+
+/* ── Char bar ── */
+.char-bar-wrap { height: 4px; background: #f0f0f0; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.char-bar { height: 100%; border-radius: 2px; transition: width .3s, background .3s; background: #009688; }
+
+/* ── Banners ── */
+.banner-blue  { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#1e40af; margin-bottom:12px; }
+.banner-amber { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#92400e; margin-bottom:12px; }
+.banner-teal  { background:#f0faf9; border:1px solid #b2dfdb; border-radius:8px; padding:10px 14px; font-size:0.82rem; color:#00695c; margin-bottom:12px; }
+.banner-red   { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+
+/* ── Summary ── */
+.summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+.sum-cell { border-radius: 8px; padding: 14px; text-align: center; }
+.sum-num  { font-size: 1.8rem; font-weight: 700; }
+.sum-lbl  { font-size: 0.74rem; margin-top: 2px; font-weight: 500; }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  #sidebar { display: none; }
+  #view-home, #view-create { padding: 20px 16px 40px; }
+  .home-doc-grid { grid-template-columns: 1fr; }
+  .metrics-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ TOP BAR ══════════════════════════════════════════════════════════ -->
+  <div id="topbar">
+    <span class="siemens-logo">SIEMENS</span>
+    <div class="tb-divider"></div>
+    <span class="tb-org">Frank's green mountain coffee</span>
+    <div class="tb-search">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      Search
+    </div>
+    <div class="tb-gear" onclick="toggleApiPanel()" id="api-gear-btn">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      <span id="api-gear-label">API Key</span>
+    </div>
+  </div>
+
+  <!-- ── API key panel ─────────────────────────────────────────────────── -->
+  <div id="api-panel">
+    <span id="api-panel-label">🔑 API Key</span>
+    <div style="display:flex;align-items:center;gap:0;flex:0 0 auto">
+      <input id="api-key" type="password" placeholder="Paste your API key here"
+             oninput="onKeyInput()" autocomplete="off" spellcheck="false"
+             style="font-family:monospace;font-size:0.82rem;border:1px solid #e0e0e0;border-radius:6px 0 0 6px;padding:6px 10px;outline:none;width:280px;background:#fff;border-right:none;transition:border-color .15s">
+      <button onclick="toggleKeyVis()" id="eye-btn" title="Show/hide key"
+              style="border:1px solid #e0e0e0;border-radius:0 6px 6px 0;padding:6px 9px;background:#f9f9f9;cursor:pointer;font-size:0.82rem;color:#888;transition:all .15s">👁</button>
+    </div>
+    <span id="api-panel-hint" style="font-size:0.74rem;color:#aaa">Stays in this browser tab only.</span>
+    <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+      <span style="font-size:0.74rem;color:#aaa;white-space:nowrap">Base URL:</span>
+      <input id="api-base-url" type="text" value="https://litellm.sparkai.brightlysoftware.io"
+             autocomplete="off" spellcheck="false"
+             style="font-family:monospace;font-size:0.75rem;border:1px solid #e0e0e0;border-radius:6px;padding:5px 8px;outline:none;width:240px;background:#fff;color:#555;transition:border-color .15s">
+    </div>
+  </div>
+
+  <!-- ══ BODY ═════════════════════════════════════════════════════════════ -->
+  <div id="body">
+
+    <!-- ── SIDEBAR ── -->
+    <div id="sidebar" class="">
+      <button class="sb-collapse" onclick="toggleSidebar()" title="Collapse">
+        <svg id="sb-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+
+      <button class="sb-get-started" onclick="goHome()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" flex-shrink="0">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span class="sb-label">Let's get started!</span>
+      </button>
+
+      <button class="sb-create" onclick="goCreate()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span class="sb-label">Create</span>
+      </button>
+
+      <div class="sb-divider"></div>
+
+      <button class="sb-item active" id="nav-home" onclick="goHome()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span class="sb-label">Home</span>
+      </button>
+
+      <button class="sb-item" id="nav-create" onclick="goCreate()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+        <span class="sb-label">Work</span>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span class="sb-label">Plan</span>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 8v4l3 3"/>
+        </svg>
+        <span class="sb-label">Manage</span>
+        <svg class="chevron" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M4 6h16M4 12h16M4 18h7"/>
+        </svg>
+        <span class="sb-label">Catalog</span>
+        <svg class="chevron" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <button class="sb-item">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <span class="sb-label">Analyze</span>
+      </button>
+    </div>
+
+    <!-- ══ CONTENT ══════════════════════════════════════════════════════ -->
+    <div id="content">
+
+      <!-- ─ HOME VIEW ─ -->
+      <div id="view-home">
+        <h1 class="home-greeting">Hi Frank! Let's get to work</h1>
+
+        <div class="home-feature-card">
+          <div class="home-feature-card-top">
+            <div class="home-card-icon">🔧</div>
+            <div class="home-card-body">
+              <h2>
+                AI PM Schedule Generator
+                <span class="badge-ar">AR-952 Prototype</span>
+              </h2>
+              <p>
+                Upload an equipment manual or maintenance SOP — AI reads it and pre-fills all
+                <strong>10 PM Creation Form fields</strong> for you. Supports OEM manuals,
+                internal SOPs, and <strong>FDA / GMP compliance SOPs</strong>.
+              </p>
+            </div>
+          </div>
+          <button class="btn-create-large" onclick="goCreate()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Create PM Schedule
+          </button>
+
+          <div class="home-doc-grid" style="margin-top:20px">
+            <div class="home-doc-card">
+              <div class="doc-icon">📄</div>
+              <h4>OEM Manuals</h4>
+              <p>Explicit calendar frequencies extracted automatically</p>
+            </div>
+            <div class="home-doc-card">
+              <div class="doc-icon">📋</div>
+              <h4>Maintenance SOPs</h4>
+              <p>Internal procedures with frequency-gap detection</p>
+            </div>
+            <div class="home-doc-card">
+              <div class="doc-icon">⚖️</div>
+              <h4>FDA / GMP SOPs</h4>
+              <p>Compliance SOPs generate 2–5 PMs with regulatory notes</p>
+            </div>
+          </div>
+        </div>
+      </div><!-- /view-home -->
+
+      <!-- ─ CREATE VIEW ─ -->
+      <div id="view-create" style="display:none">
+
+        <div class="breadcrumb">
+          <a onclick="goHome()">Home</a>
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+          <span style="color:#555">Create PM Schedule</span>
+        </div>
+
+        <!-- Input card -->
+        <div class="card">
+          <div class="card-title">Document Source</div>
+          <div class="tab-row">
+            <button class="tab-btn active" id="tab-pdf"  onclick="switchTab('pdf')">📄 PDF Upload</button>
+            <button class="tab-btn"        id="tab-text" onclick="switchTab('text')">🎙️ Voice / Text</button>
+          </div>
+
+          <!-- PDF panel -->
+          <div id="panel-pdf">
+            <div class="drop-zone" id="drop-zone"
+              onclick="document.getElementById('file-input').click()"
+              ondragover="dz(event,'add')" ondragleave="dz(event,'remove')" ondrop="handleDrop(event)">
+              <div style="font-size:2.4rem;margin-bottom:10px">📁</div>
+              <p style="font-size:0.9rem;font-weight:600;color:#444">Click to upload or drag &amp; drop a PDF</p>
+              <p style="font-size:0.78rem;color:#bbb;margin-top:5px">OEM manuals · Maintenance SOPs · FDA / GMP compliance SOPs · max 10 MB</p>
+            </div>
+            <input type="file" id="file-input" accept=".pdf" style="display:none" onchange="handleFile(event.target.files[0])">
+            <div id="file-info"    style="display:none;margin-top:10px" class="banner-teal"></div>
+            <details id="pdf-prev" style="display:none;margin-top:6px">
+              <summary style="font-size:0.72rem;color:#bbb;cursor:pointer;user-select:none">Show extracted text preview</summary>
+              <pre id="pdf-pre" style="margin-top:6px;font-size:0.7rem;color:#888;background:#f9f9f9;border-radius:7px;padding:10px;max-height:110px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;border:1px solid #eee"></pre>
+            </details>
+          </div>
+
+          <!-- Text panel -->
+          <div id="panel-text" style="display:none">
+            <div style="margin-bottom:12px">
+              <div class="field-label">Voice transcript or maintenance description</div>
+              <textarea id="text-input" class="field-input" rows="6"
+                placeholder="E.g. Monthly HVAC inspection on the 1st — check filters, lubricate bearings, inspect belts, verify thermostat calibration…"></textarea>
+            </div>
+            <div>
+              <div class="field-label">Source label <span style="color:#bbb;font-weight:400">(optional)</span></div>
+              <input id="src-label" type="text" class="field-input" value="Voice Input">
+            </div>
+          </div>
+
+          <!-- Generate -->
+          <div style="margin-top:18px">
+            <button id="gen-btn" class="btn-primary" onclick="generate()" disabled>
+              🚀&nbsp; Generate PM Schedule
+            </button>
+          </div>
+
+          <div id="no-key-warn" style="display:none;margin-top:10px" class="banner-amber">
+            ⚠️ No API key set — click <strong>API Key</strong> in the top-right corner to enter yours.
+          </div>
+          <div id="api-error-banner" style="display:none;margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;font-size:0.83rem;color:#b91c1c"></div>
+
+          <!-- Spinner -->
+          <div id="loading" style="display:none;margin-top:18px">
+            <div style="background:linear-gradient(135deg,#f0faf9 0%,#e8f5e9 100%);border:1px solid #b2dfdb;border-radius:14px;padding:18px 20px">
+              <!-- Top row: spinner + current step -->
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                <svg class="spin" style="width:22px;height:22px;flex-shrink:0;color:#009688" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
+                </svg>
+                <span id="load-txt" style="font-size:0.9rem;color:#00695c;font-weight:600"></span>
+              </div>
+              <!-- Activity log feed -->
+              <div id="load-log" style="font-size:0.78rem;color:#444;line-height:1.7;max-height:120px;overflow:hidden;padding-left:4px"></div>
+            </div>
+          </div>
+        </div><!-- /input card -->
+
+        <!-- Results (hidden until run) -->
+        <div id="results" style="display:none">
+
+          <!-- Metrics -->
+          <div class="metrics-row">
+            <div class="metric-card">
+              <div class="metric-label">Document Type</div>
+              <div id="r-type" class="metric-val"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">AI Confidence</div>
+              <div id="r-conf" class="metric-val"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">PMs Generated</div>
+              <div id="r-count" class="metric-val lg"></div>
+            </div>
+          </div>
+
+          <div id="r-reason"     style="display:none" class="banner-blue"></div>
+          <div id="r-compliance" style="display:none" class="banner-amber"></div>
+
+          <!-- Zero PM -->
+          <div id="r-zero" style="display:none" class="banner-red">
+            <h3 style="font-weight:700;color:#dc2626;font-size:1rem;margin-bottom:8px">❌ No PM Schedule Could Be Generated</h3>
+            <p id="r-zero-reason" style="font-size:0.84rem;color:#b91c1c;margin-bottom:14px"></p>
+            <div style="background:#fff;border-radius:8px;border:1px solid #fecaca;padding:13px;font-size:0.82rem;color:#555">
+              <p style="font-weight:600;color:#333;margin-bottom:6px">Documents that DO generate PMs:</p>
+              <ul style="list-style:disc;padding-left:16px;color:#666;line-height:1.9">
+                <li>OEM equipment manuals (Trane, Carrier, Caterpillar…)</li>
+                <li>Preventive maintenance SOPs with scheduled / periodic tasks</li>
+                <li>FDA / GMP / compliance SOPs with a PM Program section</li>
+                <li>Any document referencing periodic or scheduled maintenance</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- PM form cards -->
+          <div id="pm-forms"></div>
+
+          <!-- Review summary -->
+          <div id="review-summary" style="display:none" class="card">
+            <div class="card-title">Review Summary</div>
+            <div class="summary-grid">
+              <div class="sum-cell" style="background:#f0faf9">
+                <div id="s-created"   class="sum-num" style="color:#009688">0</div>
+                <div class="sum-lbl"  style="color:#009688">✅ Created</div>
+              </div>
+              <div class="sum-cell" style="background:#fef2f2">
+                <div id="s-discarded" class="sum-num" style="color:#dc2626">0</div>
+                <div class="sum-lbl"  style="color:#dc2626">🗑️ Discarded</div>
+              </div>
+              <div class="sum-cell" style="background:#fffbeb">
+                <div id="s-pending"   class="sum-num" style="color:#d97706">0</div>
+                <div class="sum-lbl"  style="color:#d97706">🟡 Pending</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn-secondary" onclick="exportJSON()" style="flex:1">⬇️ Download JSON</button>
+              <button class="btn-secondary" onclick="exportText()" style="flex:1">⬇️ Download Text</button>
+            </div>
+          </div>
+
+        </div><!-- /results -->
+
+      </div><!-- /view-create -->
+
+    </div><!-- /content -->
+  </div><!-- /body -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════════════════════ -->
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const CATS = ['Calibration','Cleaning/Sanitation','Compliance','Inspection','Other',
+              'Preventive Maintenance','Process Improvement','Projects','Safety'];
+const PRIS = ['High','Medium','Low'];
+
+let sidebarOpen = true;
+let activeTab   = 'pdf';
+let pdfContent  = '';
+let pdfName     = '';
+let apiResult   = null;
+let pmStates    = {};
+let apiPanelOpen = false;
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function goHome() {
+  document.getElementById('view-home').style.display   = '';
+  document.getElementById('view-create').style.display = 'none';
+  setNavActive('nav-home');
+}
+function goCreate() {
+  document.getElementById('view-home').style.display   = 'none';
+  document.getElementById('view-create').style.display = '';
+  setNavActive('nav-create');
+  document.getElementById('content').scrollTop = 0;
+}
+function setNavActive(id) {
+  ['nav-home','nav-create'].forEach(x => {
+    const el = document.getElementById(x);
+    if (el) el.classList.toggle('active', x === id);
+  });
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed', !sidebarOpen);
+  const arrow = document.getElementById('sb-arrow');
+  arrow.innerHTML = sidebarOpen
+    ? '<path d="M15 18l-6-6 6-6"/>'
+    : '<path d="M9 18l6-6-6-6"/>';
+}
+
+// ── API panel ──────────────────────────────────────────────────────────────
+function toggleApiPanel() {
+  apiPanelOpen = !apiPanelOpen;
+  document.getElementById('api-panel').style.display = apiPanelOpen ? 'flex' : 'none';
+  document.getElementById('api-gear-label').textContent = apiPanelOpen ? 'Close ✕' : 'API Key';
+  if (apiPanelOpen) setTimeout(() => document.getElementById('api-key').focus(), 50);
+}
+function onKeyInput() {
+  const key = (document.getElementById('api-key').value||'').trim();
+  const hint = document.getElementById('api-panel-hint');
+  hint.innerHTML = key.length > 0
+    ? '✅ <span style="color:#009688">Key entered</span>'
+    : 'Stays in this browser tab only.';
+  // Hide any previous error when user edits the key
+  document.getElementById('api-error-banner').style.display = 'none';
+  updateGenBtn();
+}
+
+function toggleKeyVis() {
+  const inp = document.getElementById('api-key');
+  const btn = document.getElementById('eye-btn');
+  if (inp.type === 'password') {
+    inp.type = 'text'; btn.textContent = '🙈';
+  } else {
+    inp.type = 'password'; btn.textContent = '👁';
+  }
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(t) {
+  activeTab = t;
+  ['pdf','text'].forEach(x => {
+    document.getElementById('tab-'+x).className   = 'tab-btn'+(x===t?' active':'');
+    document.getElementById('panel-'+x).style.display = x===t ? '' : 'none';
+  });
+  updateGenBtn();
+}
+
+// ── Drop zone ──────────────────────────────────────────────────────────────
+function dz(e, action) { e.preventDefault(); document.getElementById('drop-zone').classList[action]('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+}
+
+// ── Text sanitiser ─────────────────────────────────────────────────────────
+// PDF.js can emit null bytes, lone surrogates, and other control characters
+// that silently corrupt the JSON request body or the API response.
+function sanitizeDoc(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/\x00/g, '')                              // null bytes
+    .replace(/[\uD800-\uDFFF]/g, '')                   // lone surrogates (invalid UTF-16)
+    .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')// other control chars (keep tab/newline/CR)
+    .replace(/[ \t]+/g, ' ')                           // collapse spaces/tabs
+    .replace(/\n{3,}/g, '\n\n')                        // collapse excess blank lines
+    .slice(0, 80000)                                   // hard cap (~60k tokens)
+    .trim();
+
+}
+
+// ── PDF ────────────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!file || file.type !== 'application/pdf') { alert('Please upload a PDF.'); return; }
+  pdfName = file.name;
+  const fi = document.getElementById('file-info');
+  fi.style.display = '';
+  fi.textContent = `📄 ${file.name} — ${(file.size/1024).toFixed(1)} KB — extracting text…`;
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let txt = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const items = (await (await pdf.getPage(i)).getTextContent()).items;
+      txt += items.map(it => it.str).join(' ') + '\n';
+    }
+    pdfContent = sanitizeDoc(txt.trim());
+    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
+    document.getElementById('pdf-prev').style.display = '';
+    document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
+  } catch {
+    fi.textContent = '⚠️ Could not extract text — may be a scanned / image-only PDF.';
+    pdfContent = '';
+  }
+  updateGenBtn();
+}
+
+// ── Gen button ─────────────────────────────────────────────────────────────
+function updateGenBtn() {
+  const key  = (document.getElementById('api-key').value||'').trim();
+  const hasPDF  = activeTab==='pdf'  && pdfContent.length>0;
+  const hasTxt  = activeTab==='text' && document.getElementById('text-input').value.trim().length>0;
+  const ok = hasPDF || hasTxt;
+  document.getElementById('gen-btn').disabled = !ok;
+  document.getElementById('no-key-warn').style.display = ok && !key ? '' : 'none';
+}
+
+// ── System prompt ──────────────────────────────────────────────────────────
+const SYS = `You are an AI assistant specialised in extracting Preventive Maintenance (PM) schedules from maintenance documents, OEM equipment manuals, Standard Operating Procedures (SOPs), compliance/regulatory SOPs, and voice transcripts.
+
+Your sole job is to read the provided content and populate the MMM PM Creation Form — 10 fields total (6 mandatory, 4 optional) — PLUS three enrichment fields: priority, note, and compliance agency.
+
+════════════════════════════════════════════════════
+SECTION 1 — CLASSIFY THE DOCUMENT FIRST
+════════════════════════════════════════════════════
+
+TYPE A — OEM Equipment Manual
+  Manufacturer-published manual. Contains explicit calendar frequencies.
+  Expected: HIGH confidence. Usually 2–5 distinct PMs.
+
+TYPE B — Internal / Compliance Maintenance SOP
+  Includes ANY of the following:
+  • Organisation's own maintenance procedure
+  • FDA / GMP / cGMP / food-safety / regulatory compliance SOP
+  • Document with a "Preventive Maintenance Program" section
+  Describes WHAT and HOW but may not state HOW OFTEN.
+  Expected: MEDIUM confidence. Usually 2–5 PMs. Frequency gap is NORMAL.
+  CRITICAL: Classify as TYPE B even if the document ALSO contains a breakdown section.
+
+TYPE C — PURELY Breakdown / Reactive Maintenance SOP
+  The ENTIRE document describes ONLY what to do AFTER equipment has failed. Contains ZERO mention of any PM program.
+  Expected: ZERO PMs.
+  Do NOT classify as TYPE C if the document has ANY PM program, scheduled tasks, or compliance-required preventive activities.
+
+TYPE D — Other
+  Commissioning, warranty, parts catalogue. Attempt extraction. Low confidence.
+
+════════════════════════════════════════════════════
+SECTION 2 — IDENTIFY SCHEDULABLE ACTIVITIES
+════════════════════════════════════════════════════
+
+INCLUDE: Tasks with explicit frequency; tasks described as "periodically"/"at defined intervals" (set frequency_gap=true, STILL create PM); compliance-required inspections.
+EXCLUDE: Breakdown/corrective tasks; one-time installation; purely conditional tasks.
+
+════════════════════════════════════════════════════
+SECTION 3 — THE 10 PM CREATION FORM FIELDS
+════════════════════════════════════════════════════
+
+FIELD 1 — Assets: For VOICE input — extract the asset name exactly as spoken (e.g. "Chiller Unit 3", "Conveyor Belt B"). For DOCUMENT upload — set to empty string "" (user selects manually). Never invent an asset name not spoken or written in the source.
+FIELD 2 — Title: [Task Type] — [Equipment/Area/Scope]
+FIELD 3 — Category: Calibration | Cleaning/Sanitation | Compliance | Inspection | Other | Preventive Maintenance | Process Improvement | Projects | Safety
+FIELD 4 — Repeats: "[Frequency] — Every [N] [Unit], [Day/Date]". If "periodically" → "⚠️ Not specified in document — user must set frequency"
+FIELD 5 — Start On: TODAY_DATE from message
+FIELD 6 — Create WO Time: CURRENT_TIME from message
+FIELD 7 — End After: "Blank" unless document states explicit end
+FIELD 8 — Assign To: "Blank" unless specific role named
+FIELD 9 — Description: Full task checklist, max 2000 chars. Line 1: SAFETY/PPE; numbered tasks; compliance notes at end.
+FIELD 10 — Add Attachment: "Attach source document: [SOURCE_NAME]"
+
+ENRICHMENT A — Priority: High (safety-critical/food contact/CCP) | Medium (standard PM) | Low (admin tasks)
+ENRICHMENT B — Note: Regulatory citation max 150 chars, e.g. "Per 21 CFR 117.40 — Section 6.1"
+ENRICHMENT C — Compliance Agency: If the document or voice mentions a regulatory body, standard, or compliance programme — extract it as a short agency/standard name. Use the closest match from this list: OSHA | FDA | EPA | ISO 9001 | ISO 14001 | ISO 45001 | NFPA | ANSI | ASHRAE | GMP | cGMP | HACCP | NSF | UL | ATEX | NEC | 21 CFR | Local Authority. If the agency is not on the list, return the exact name as spoken/written. If no compliance agency is mentioned, return empty string "".
+
+════════════════════════════════════════════════════
+SECTION 4 — SPECIAL RULES
+════════════════════════════════════════════════════
+
+RULE A — Frequency Gap: "periodically" → frequency_gap=true, still create PM.
+RULE B — Zero PM: ONLY when document has NO PM program, NO scheduled tasks, and ONLY describes post-failure reactive procedures.
+RULE C — Mixed document: Extract preventive sections only. TYPE B.
+RULE D — Compliance Agency: Extract agency per PM (not just document-level). A single document can have PMs under different agencies. Each PM's compliance_agency is independent.
+
+════════════════════════════════════════════════════
+SECTION 5 — OUTPUT FORMAT
+════════════════════════════════════════════════════
+
+Return ONLY valid JSON. No markdown. No explanation outside JSON.
+{"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","compliance_agency":"","description_char_count":0,"extraction_notes":""}]}`;
+
+// ── Loading message animator ───────────────────────────────────────────────
+const LOAD_STEPS = {
+  pdf: [
+    { icon:'📄', text:'Reading your PDF document…' },
+    { icon:'🔍', text:'Scanning for maintenance schedules…' },
+    { icon:'🛠️', text:'Identifying preventive maintenance tasks…' },
+    { icon:'📅', text:'Extracting frequencies and intervals…' },
+    { icon:'⚙️', text:'Classifying PM categories…' },
+    { icon:'🔧', text:'Analysing equipment and asset references…' },
+    { icon:'⚠️', text:'Checking for compliance requirements…' },
+    { icon:'📊', text:'Calculating priorities and risk levels…' },
+    { icon:'✍️', text:'Writing task descriptions and checklists…' },
+    { icon:'🏗️', text:'Structuring PM creation forms…' },
+    { icon:'✅', text:'Almost done — finalising your PM schedules…' },
+  ],
+  voice: [
+    { icon:'🎤', text:'Reading your voice input…' },
+    { icon:'🔍', text:'Identifying maintenance activities…' },
+    { icon:'🏷️', text:'Extracting asset names…' },
+    { icon:'📅', text:'Detecting frequencies and schedules…' },
+    { icon:'⚙️', text:'Classifying PM categories…' },
+    { icon:'⚠️', text:'Checking for compliance mentions…' },
+    { icon:'📊', text:'Assigning priorities…' },
+    { icon:'✍️', text:'Building task descriptions…' },
+    { icon:'🏗️', text:'Structuring PM creation forms…' },
+    { icon:'✅', text:'Almost done — finalising your PM schedules…' },
+  ]
+};
+
+let _loadTimer = null;
+
+function startLoadAnimation(inputType) {
+  const steps  = LOAD_STEPS[inputType] || LOAD_STEPS.pdf;
+  const txtEl  = document.getElementById('load-txt');
+  const logEl  = document.getElementById('load-log');
+  txtEl.textContent = '';
+  logEl.innerHTML   = '';
+
+  let i = 0;
+
+  function showStep() {
+    if (i >= steps.length) return;
+    const s = steps[i];
+
+    // Update header
+    txtEl.style.opacity = '0';
+    txtEl.style.transition = 'opacity 0.3s';
+    setTimeout(() => {
+      txtEl.textContent = s.icon + '  ' + s.text;
+      txtEl.style.opacity = '1';
+    }, 200);
+
+    // Append to log feed (keep last 5)
+    const line = document.createElement('div');
+    line.style.cssText = 'opacity:0;transition:opacity 0.4s;padding:1px 0';
+    line.innerHTML = `<span style="opacity:0.45;margin-right:6px">${s.icon}</span><span style="color:#555">${s.text}</span>`;
+    logEl.appendChild(line);
+    setTimeout(() => { line.style.opacity = '1'; }, 50);
+
+    // Keep only last 5 lines visible
+    while (logEl.children.length > 5) {
+      const old = logEl.children[0];
+      old.style.opacity = '0';
+      setTimeout(() => { if (old.parentNode) old.parentNode.removeChild(old); }, 400);
+    }
+
+    i++;
+    // Vary delay to feel more natural
+    const delay = 1400 + (i % 3) * 300;
+    _loadTimer = setTimeout(showStep, delay);
+  }
+
+  showStep();
+}
+
+function stopLoadAnimation() {
+  if (_loadTimer) { clearTimeout(_loadTimer); _loadTimer = null; }
+  const txtEl = document.getElementById('load-txt');
+  const logEl = document.getElementById('load-log');
+  if (txtEl) { txtEl.textContent = ''; }
+  if (logEl) { logEl.innerHTML = ''; }
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────
+async function generate() {
+  const key = (document.getElementById('api-key').value||'').trim();
+  if (!key) {
+    if (!apiPanelOpen) toggleApiPanel();
+    document.getElementById('api-key').focus();
+    document.getElementById('api-key').style.borderColor = '#dc2626';
+    setTimeout(() => document.getElementById('api-key').style.borderColor='', 2000);
+    return;
+  }
+  const content = sanitizeDoc(activeTab==='pdf'
+    ? pdfContent
+    : document.getElementById('text-input').value.trim());
+  const source  = activeTab==='pdf'
+    ? pdfName
+    : (document.getElementById('src-label').value.trim()||'Voice Input');
+
+  document.getElementById('gen-btn').disabled = true;
+  document.getElementById('loading').style.display  = '';
+  document.getElementById('results').style.display  = 'none';
+  startLoadAnimation(activeTab);
+
+  const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const now   = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+
+  const msg =
+`TODAY_DATE   : ${today}
+CURRENT_TIME : ${now}
+SOURCE_NAME  : ${source}
+
+════════════════════════════════════════
+CONTENT TO ANALYSE:
+════════════════════════════════════════
+
+${content}
+
+════════════════════════════════════════
+Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
+
+  const errBanner = document.getElementById('api-error-banner');
+  errBanner.style.display = 'none';
+
+  try {
+    const baseUrl = (document.getElementById('api-base-url').value||'https://litellm.sparkai.brightlysoftware.io').replace(/\/+$/, '');
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        ...(baseUrl.includes('api.anthropic.com') ? {'anthropic-dangerous-direct-browser-access': 'true'} : {})
+      },
+      body: JSON.stringify({ model:'sparkai-developer-claude', max_tokens:8192, system:SYS,
+        messages:[{ role:'user', content:msg }] })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({}));
+      const apiMsg = e?.error?.message || '';
+      let friendly = '';
+      if (res.status === 401) {
+        friendly = `❌ <strong>Authentication failed (401)</strong> — the key was rejected by the endpoint.<br>
+• Click <strong>👁</strong> to reveal the key and check for extra spaces.<br>
+• If using a custom endpoint, verify the <strong>Base URL</strong> matches your API gateway.
+${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
+      } else if (res.status === 429) {
+        friendly = `⏳ <strong>Rate limited (429)</strong> — too many requests. Wait 30 seconds and try again.${apiMsg?'<br><em>'+apiMsg+'</em>':''}`;
+      } else if (res.status === 403) {
+        friendly = `🚫 <strong>Permission denied (403)</strong> — your key may not have access to Claude Opus. ${apiMsg?'<br><em>'+apiMsg+'</em>':''}`;
+      } else if (res.status === 529 || res.status === 503) {
+        friendly = `🔄 <strong>Anthropic API overloaded (${res.status})</strong> — wait a moment and try again.`;
+      } else {
+        friendly = `⚠️ <strong>API error ${res.status}</strong>${apiMsg ? ': ' + apiMsg : ''}`;
+      }
+      throw Object.assign(new Error(friendly), { friendly: true });
+    }
+
+    const data = await res.json();
+    let raw = data.content[0].text.trim();
+    if (raw.startsWith('```')) raw = raw.replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
+
+    apiResult = JSON.parse(raw);
+    pmStates = {};
+    (apiResult.pms||[]).forEach(pm => { pmStates[`pm${pm.pm_number}`] = 'pending'; });
+
+    stopLoadAnimation();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('gen-btn').disabled = false;
+    renderResults();
+  } catch(err) {
+    stopLoadAnimation();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('gen-btn').disabled = false;
+    if (err.friendly) {
+      errBanner.innerHTML = err.message;
+      errBanner.style.display = '';
+      errBanner.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    } else {
+      // Detect specific error types for better guidance
+      const msg = (err.message||'').toLowerCase();
+      let html = '';
+      if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('network request failed') || msg.includes('load failed')) {
+        html = `🌐 <strong>Network error — could not reach the API</strong><br>
+          Most likely causes:<br>
+          &nbsp;• <strong>VPN / corporate network</strong> — try connecting to the Siemens VPN or switching networks<br>
+          &nbsp;• <strong>Wrong Base URL</strong> — click ⚙️ and confirm it is <code>https://litellm.sparkai.brightlysoftware.io</code><br>
+          &nbsp;• <strong>API endpoint is down</strong> — wait a moment and try again<br>
+          &nbsp;• <strong>Browser CORS block</strong> — the endpoint may not allow direct browser requests from this origin`;
+      } else if (msg.includes('json') || msg.includes('syntax') || msg.includes('unexpected token') || msg.includes('unterminated')) {
+        html = `📄 <strong>AI returned invalid JSON</strong> — ${esc(err.message)}<br>
+          This can happen with very large or complex documents.<br>
+          &nbsp;• Try copy-pasting just the relevant section into the <strong>Text tab</strong><br>
+          &nbsp;• Or shorten the document and try again`;
+      } else {
+        html = `⚠️ <strong>Unexpected error</strong> — ${esc(err.message)}<br>
+          Check your network connection and the Base URL in ⚙️ Settings, then try again.`;
+      }
+      errBanner.innerHTML = html;
+      errBanner.style.display = '';
+      errBanner.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderResults() {
+  const r = apiResult;
+  document.getElementById('results').style.display = '';
+  const em = {High:'🟢',Medium:'🟡',Low:'🔴'};
+  document.getElementById('r-type').textContent  = r.document_type || '—';
+  document.getElementById('r-conf').textContent  = (em[r.ai_confidence]||'⚪')+' '+(r.ai_confidence||'—');
+  document.getElementById('r-count').textContent = r.pm_count ?? 0;
+
+  // Suppress verbose AI reasoning — keep header clean
+  document.getElementById('r-reason').style.display = 'none';
+
+  const ag = r.compliance_agencies_detected||[];
+  const rc = document.getElementById('r-compliance');
+  if (ag.length) { rc.style.display=''; rc.innerHTML=`⚖️ <strong>Compliance:</strong> ${ag.join(', ')}`; }
+  else rc.style.display='none';
+
+  const zero = r.pm_count===0;
+  document.getElementById('r-zero').style.display = zero ? '' : 'none';
+  if (zero) document.getElementById('r-zero-reason').textContent = r.no_pm_reason||'';
+
+  const forms = document.getElementById('pm-forms');
+  forms.innerHTML = '';
+  if (!zero) (r.pms||[]).forEach(pm => forms.appendChild(buildCard(pm, r)));
+
+  updateSummary();
+  document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ── PM card ────────────────────────────────────────────────────────────────
+function buildCard(pm, r) {
+  const n=pm.pm_number, id=`pm${n}`;
+  const el=document.createElement('div');
+  el.id=`card-${id}`; el.className='pm-card';
+
+  let desc=pm.description||'';
+  if (desc.length>2000) desc=desc.slice(0,1950).trimEnd()+'\n[Truncated to 2,000 chars]';
+
+  const freqVal  = (pm.repeats||'').replace(/Not specified.*/i,'').trim();
+  const startVal = pm.start_on||'';
+  const woVal    = pm.create_wo_time||'';
+
+  // Priority tab colours
+  const priColor = {High:'#dc2626',Medium:'#d97706',Low:'#2563eb'};
+
+  el.innerHTML=`
+  <!-- Card header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f0f0f0">
+    <div>
+      <span style="font-size:0.75rem;font-weight:600;color:#009688;text-transform:uppercase;letter-spacing:.05em">PM Schedule #${n}</span>
+      <h3 id="${id}-title-disp" style="font-size:1rem;font-weight:700;color:#1a1a1a;margin-top:3px">${esc(pm.title||'Untitled PM')}</h3>
+    </div>
+    <span id="badge-${id}" class="badge badge-pend" style="white-space:nowrap;flex-shrink:0">Pending</span>
+  </div>
+
+  ${r.frequency_gap&&!freqVal?`<div class="banner-amber" style="margin-bottom:12px">⚠️ Frequency not stated — update <strong>Repeats</strong> before creating.</div>`:''}
+
+  <!-- ROW 1: Asset + Title -->
+  <div style="margin-bottom:12px">
+    <div class="field-label">Asset <span class="field-req">*</span></div>
+    ${pm.assets && pm.assets.trim() !== '' ? `
+    <input id="${id}-asset" type="text" class="field-input"
+      value="${esc(pm.assets)}"
+      style="border-color:#009688;background:#f0faf9"
+      placeholder="AI suggested — confirm or update in MMM">
+    <span style="font-size:0.72rem;color:#009688;margin-top:3px;display:block">🤖 AI suggested from voice — confirm asset exists in MMM before creating</span>
+    ` : `
+    <select id="${id}-asset" class="field-input" style="color:#555">
+      <option value="">— Select asset in MMM —</option>
+      <option value="__other">Other (enter manually in MMM)</option>
+    </select>
+    <span style="font-size:0.72rem;color:#888;margin-top:3px;display:block">Mention asset name in your voice input to auto-suggest</span>
+    `}
+  </div>
+
+  <div style="margin-bottom:12px">
+    <div class="field-label">Title <span class="field-req">*</span></div>
+    <input id="${id}-title" type="text" class="field-input" value="${esc(pm.title||'')}">
+  </div>
+
+  <!-- ROW 2: Category + Repeats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <div class="field-label">Category <span class="field-req">*</span></div>
+      <select id="${id}-cat" class="field-input" onchange="onCatChange('${id}',this.value)">
+        ${CATS.map(c=>`<option${c===pm.category?' selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <div class="field-label">Repeats <span class="field-req">*</span></div>
+      <input id="${id}-rep" type="text" class="field-input" value="${esc(freqVal)}" placeholder="e.g. Every 1 Month">
+    </div>
+  </div>
+
+  <!-- ROW 3: Start On + Create WO Time -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <div class="field-label">Start On <span class="field-req">*</span></div>
+      <input id="${id}-start" type="text" class="field-input" value="${esc(startVal)}" placeholder="e.g. 2025-01-01">
+    </div>
+    <div>
+      <div class="field-label">Create WO Time <span class="field-req">*</span></div>
+      <input id="${id}-wo" type="text" class="field-input" value="${esc(woVal)}" placeholder="e.g. 7 days before">
+    </div>
+  </div>
+
+  <!-- Priority tab selector -->
+  <div style="margin-bottom:12px">
+    <div class="field-label">Priority</div>
+    <div style="display:flex;gap:0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;width:fit-content">
+      ${PRIS.map(p=>{
+        const active=p===(pm.priority||'Medium');
+        const col=priColor[p]||'#555';
+        return `<button type="button" id="${id}-pri-${p}"
+          onclick="setPri('${id}','${p}')"
+          style="padding:7px 18px;font-size:0.8rem;font-weight:600;border:none;cursor:pointer;
+            background:${active?col:'#fff'};color:${active?'#fff':col};
+            border-right:1px solid #e5e7eb;transition:background .15s,color .15s"
+          >${p}</button>`;
+      }).join('')}
+    </div>
+    <input type="hidden" id="${id}-pri" value="${esc(pm.priority||'Medium')}">
+  </div>
+
+  <!-- Description -->
+  <div style="margin-bottom:4px">
+    <div class="field-label">Description</div>
+    <textarea id="${id}-desc" class="field-input" rows="4" oninput="upChar('${id}')">${esc(desc)}</textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:2px">
+      <span id="${id}-chars" style="font-size:0.7rem;color:#bbb">0 / 2,000</span>
+    </div>
+    <div class="char-bar-wrap"><div id="${id}-bar" class="char-bar" style="width:0%"></div></div>
+    <p id="${id}-cerr" style="display:none;font-size:0.72rem;color:#dc2626;margin-top:3px">⚠️ Exceeds 2,000 chars — shorten before creating.</p>
+  </div>
+
+  <!-- Optional fields — always shown so user can fill before creating -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;margin-bottom:12px">
+    <div>
+      <div class="field-label">End After</div>
+      <input id="${id}-end" type="text" class="field-input"
+        value="${esc((pm.end_after||'').replace(/^Blank$/i,''))}" placeholder="Leave blank for no end">
+    </div>
+    <div>
+      <div class="field-label">Assign To</div>
+      <input id="${id}-asgn" type="text" class="field-input"
+        value="${esc((pm.assign_to||'').replace(/^Blank$/i,''))}" placeholder="Select in MMM">
+    </div>
+  </div>
+  <div style="margin-bottom:12px">
+    <div class="field-label">Note</div>
+    <input id="${id}-note" type="text" class="field-input"
+      value="${esc(pm.note||'')}" placeholder="e.g. Per ISO 9001 — Section 4.2">
+  </div>
+  <div style="margin-bottom:12px">
+    <div class="field-label">Attachment</div>
+    <input id="${id}-att" type="text" class="field-input"
+      value="${esc(pm.add_attachment||'')}" placeholder="Source document auto-attached on creation">
+  </div>
+
+  <!-- Compliance Agency (shown when Category=Compliance or agency detected) -->
+  <div id="${id}-comp-wrap" style="margin-bottom:12px;display:${(pm.category==='Compliance'||(pm.compliance_agency&&pm.compliance_agency.trim()))?'block':'none'}">
+    <hr style="margin:4px 0 14px;border:none;border-top:2px solid #fef3c7">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span style="font-size:0.8rem;font-weight:700;color:#b45309;letter-spacing:0.04em;text-transform:uppercase">Compliance Agency</span>
+    </div>
+    <select id="${id}-comp" class="field-input" onchange="onCompChange('${id}',this.value)"
+      style="border-color:#fcd34d;background:#fffbeb">
+      <option value="">— Select agency / standard —</option>
+      ${['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other'].map(a=>{
+        const sel = (pm.compliance_agency||'')=== a ? ' selected':'';
+        return `<option value="${a}"${sel}>${a}</option>`;
+      }).join('')}
+      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?`<option value="${esc(pm.compliance_agency)}" selected>${esc(pm.compliance_agency)}</option>`:''}
+    </select>
+    <input id="${id}-comp-other" type="text" class="field-input"
+      style="margin-top:8px;display:${(pm.compliance_agency==='Other')?'block':'none'}"
+      value="${esc(pm.compliance_agency==='Other'?'':pm.compliance_agency||'')}"
+      placeholder="Enter agency or standard name">
+    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?`<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected from ${pm.category==='Compliance'?'document/voice':'source'} — confirm before creating</span>`:''}
+  </div>
+
+  <!-- Actions -->
+  <hr style="margin:14px 0 14px;border:none;border-top:1px solid #f0f0f0">
+  <div style="display:flex;gap:10px">
+    <button id="${id}-cbtn" class="btn-primary" onclick="setState('${id}','created')" style="padding:10px 22px">✅ Create PM</button>
+    <button class="btn-discard" onclick="setState('${id}','discarded')" style="padding:10px 18px">Discard</button>
+  </div>`;
+
+  setTimeout(()=>upChar(id),0);
+  return el;
+}
+
+// ── Priority tab toggle ─────────────────────────────────────────────────────
+const _priCol = {High:'#dc2626',Medium:'#d97706',Low:'#2563eb'};
+function setPri(id, val) {
+  document.getElementById(`${id}-pri`).value = val;
+  ['High','Medium','Low'].forEach(p => {
+    const btn = document.getElementById(`${id}-pri-${p}`);
+    if (!btn) return;
+    const active = p === val;
+    btn.style.background = active ? _priCol[p] : '#fff';
+    btn.style.color       = active ? '#fff'     : _priCol[p];
+  });
+}
+
+// ── Compliance Agency helpers ──────────────────────────────────────────────
+function onCatChange(id, val) {
+  const wrap = document.getElementById(`${id}-comp-wrap`);
+  if (!wrap) return;
+  // Show compliance section when category switches to Compliance
+  if (val === 'Compliance') {
+    wrap.style.display = 'block';
+  } else {
+    // Hide only if no agency was already detected
+    const comp = document.getElementById(`${id}-comp`);
+    if (!comp || !comp.value) wrap.style.display = 'none';
+  }
+}
+function onCompChange(id, val) {
+  const other = document.getElementById(`${id}-comp-other`);
+  if (!other) return;
+  other.style.display = val === 'Other' ? 'block' : 'none';
+  if (val !== 'Other') other.value = '';
+}
+
+// ── State / summary ────────────────────────────────────────────────────────
+function setState(id, state) {
+  pmStates[id] = state;
+  const card  = document.getElementById(`card-${id}`);
+  const title = (card.querySelector(`#${id}-title`)||{}).value || id;
+  if (state==='created') {
+    card.className='pm-card created';
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.8rem">✅</span>
+      <div><p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+      <p style="font-size:0.82rem;color:#009688;margin-top:3px">PM created. Assign asset(s) in MMM.</p></div></div>`;
+  } else {
+    card.className='pm-card discarded';
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.8rem">🗑️</span>
+      <div><p style="font-weight:600;color:#1a1a1a">${esc(title)}</p>
+      <p style="font-size:0.82rem;color:#dc2626;margin-top:3px">PM discarded.</p></div></div>`;
+  }
+  updateSummary();
+}
+function updateSummary() {
+  const v=Object.values(pmStates);
+  const c=v.filter(x=>x==='created').length,
+        d=v.filter(x=>x==='discarded').length,
+        p=v.filter(x=>x==='pending').length;
+  if (c+d>0) {
+    document.getElementById('review-summary').style.display='';
+    document.getElementById('s-created').textContent=c;
+    document.getElementById('s-discarded').textContent=d;
+    document.getElementById('s-pending').textContent=p;
+  }
+}
+
+// ── Char bar ───────────────────────────────────────────────────────────────
+function upChar(id) {
+  const ta=document.getElementById(`${id}-desc`); if(!ta)return;
+  const len=ta.value.length, pct=Math.min(len/2000*100,100);
+  document.getElementById(`${id}-chars`).textContent=`${len.toLocaleString()} / 2,000`;
+  const bar=document.getElementById(`${id}-bar`);
+  bar.style.width=pct+'%';
+  bar.style.background=pct<80?'#009688':pct<95?'#f59e0b':'#ef4444';
+  document.getElementById(`${id}-cerr`).style.display=len>2000?'':'none';
+  const btn=document.getElementById(`${id}-cbtn`); if(btn) btn.disabled=len>2000;
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportJSON(){ dl(JSON.stringify(apiResult,null,2),`pm_${ts()}.json`,'application/json'); }
+function exportText(){
+  const lines=(apiResult.pms||[]).flatMap(pm=>[
+    `PM #${pm.pm_number} — ${pm.title}`,
+    `  Priority   : ${pm.priority||'Medium'}`,
+    `  Category   : ${pm.category}`,
+    `  Repeats    : ${pm.repeats}`,
+    `  Start On   : ${pm.start_on}`,
+    `  End After  : ${pm.end_after||'Blank'}`,
+    `  Assign To  : ${pm.assign_to||'Blank'}`,
+    `  Attachment : ${pm.add_attachment||''}`,
+    pm.note?`  Note       : ${pm.note}`:null,
+    '','Description:',pm.description||'','','─'.repeat(60),''
+  ].filter(l=>l!==null));
+  dl(lines.join('\n'),`pm_${ts()}.txt`,'text/plain');
+}
+function dl(c,n,m){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([c],{type:m})); a.download=n; a.click(); }
+function ts(){ return new Date().toISOString().slice(0,16).replace(/[T:]/g,'').replace(/-/g,''); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// init
+document.getElementById('text-input').addEventListener('input', updateGenBtn);
+</script>
+</body>
+</html>
