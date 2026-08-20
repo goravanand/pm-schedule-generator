@@ -505,18 +505,13 @@ textarea.field-input { resize: vertical; min-height: 90px; }
           <div id="api-error-banner" style="display:none;margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;font-size:0.83rem;color:#b91c1c"></div>
 
           <!-- Spinner -->
-          <div id="loading" style="display:none;margin-top:18px">
-            <div style="background:linear-gradient(135deg,#f0faf9 0%,#e8f5e9 100%);border:1px solid #b2dfdb;border-radius:14px;padding:18px 20px">
-              <!-- Top row: spinner + current step -->
-              <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-                <svg class="spin" style="width:22px;height:22px;flex-shrink:0;color:#009688" fill="none" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
-                </svg>
-                <span id="load-txt" style="font-size:0.9rem;color:#00695c;font-weight:600"></span>
-              </div>
-              <!-- Activity log feed -->
-              <div id="load-log" style="font-size:0.78rem;color:#444;line-height:1.7;max-height:120px;overflow:hidden;padding-left:4px"></div>
+          <div id="loading" style="display:none;margin-top:16px;text-align:center">
+            <div style="display:inline-flex;align-items:center;gap:10px;background:#f0faf9;border:1px solid #b2dfdb;border-radius:10px;padding:13px 22px">
+              <svg class="spin" style="width:18px;height:18px;color:#009688" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".2"/>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 6.477 0 12h4z" opacity=".8"/>
+              </svg>
+              <span id="load-txt" style="font-size:0.875rem;color:#00695c;font-weight:500">Analysing document…</span>
             </div>
           </div>
         </div><!-- /input card -->
@@ -699,7 +694,7 @@ function sanitizeDoc(text) {
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')// other control chars (keep tab/newline/CR)
     .replace(/[ \t]+/g, ' ')                           // collapse spaces/tabs
     .replace(/\n{3,}/g, '\n\n')                        // collapse excess blank lines
-    .slice(0, 25000)                                   // hard cap (~18k tokens) — prevents OOM
+    .slice(0, 80000)                                   // hard cap (~60k tokens)
     .trim();
 
 }
@@ -713,20 +708,14 @@ async function handleFile(file) {
   fi.textContent = `📄 ${file.name} — ${(file.size/1024).toFixed(1)} KB — extracting text…`;
   try {
     const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf, disableFontFace: true, disableRange: true }).promise;
-    const totalPages = pdf.numPages; // store before destroy
-    const MAX_PAGES  = Math.min(totalPages, 60); // cap at 60 pages to avoid OOM
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     let txt = '';
-    for (let i = 1; i <= MAX_PAGES; i++) {
-      const page  = await pdf.getPage(i);
-      const items = (await page.getTextContent()).items;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const items = (await (await pdf.getPage(i)).getTextContent()).items;
       txt += items.map(it => it.str).join(' ') + '\n';
-      page.cleanup(); // release page resources immediately
     }
-    pdf.destroy(); // free PDF.js memory after extraction
     pdfContent = sanitizeDoc(txt.trim());
-    const truncated = totalPages > MAX_PAGES ? ' (first ' + MAX_PAGES + ' of ' + totalPages + ' pages)' : '';
-    fi.textContent = '✅ ' + file.name + ' — ' + (file.size/1024).toFixed(1) + ' KB — ' + pdfContent.length.toLocaleString() + ' characters extracted' + truncated;
+    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted`;
     document.getElementById('pdf-prev').style.display = '';
     document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
   } catch {
@@ -818,89 +807,6 @@ SECTION 5 — OUTPUT FORMAT
 Return ONLY valid JSON. No markdown. No explanation outside JSON.
 {"document_type":"OEM Manual | Maintenance SOP | Compliance SOP | Breakdown SOP | Other","ai_confidence":"High | Medium | Low","confidence_reason":"","compliance_agencies_detected":[],"pm_count":0,"frequency_gap":false,"frequency_gap_note":"","no_pm_reason":"","pms":[{"pm_number":1,"assets":"","title":"","category":"","repeats":"","start_on":"","create_wo_time":"","end_after":"Blank","assign_to":"Blank","description":"","add_attachment":"","priority":"High | Medium | Low","note":"","compliance_agency":"","description_char_count":0,"extraction_notes":""}]}`;
 
-// ── Loading message animator ───────────────────────────────────────────────
-const LOAD_STEPS = {
-  pdf: [
-    { icon:'📄', text:'Reading your PDF document…' },
-    { icon:'🔍', text:'Scanning for maintenance schedules…' },
-    { icon:'🛠️', text:'Identifying preventive maintenance tasks…' },
-    { icon:'📅', text:'Extracting frequencies and intervals…' },
-    { icon:'⚙️', text:'Classifying PM categories…' },
-    { icon:'🔧', text:'Analysing equipment and asset references…' },
-    { icon:'⚠️', text:'Checking for compliance requirements…' },
-    { icon:'📊', text:'Calculating priorities and risk levels…' },
-    { icon:'✍️', text:'Writing task descriptions and checklists…' },
-    { icon:'🏗️', text:'Structuring PM creation forms…' },
-    { icon:'✅', text:'Almost done — finalising your PM schedules…' },
-  ],
-  voice: [
-    { icon:'🎤', text:'Reading your voice input…' },
-    { icon:'🔍', text:'Identifying maintenance activities…' },
-    { icon:'🏷️', text:'Extracting asset names…' },
-    { icon:'📅', text:'Detecting frequencies and schedules…' },
-    { icon:'⚙️', text:'Classifying PM categories…' },
-    { icon:'⚠️', text:'Checking for compliance mentions…' },
-    { icon:'📊', text:'Assigning priorities…' },
-    { icon:'✍️', text:'Building task descriptions…' },
-    { icon:'🏗️', text:'Structuring PM creation forms…' },
-    { icon:'✅', text:'Almost done — finalising your PM schedules…' },
-  ]
-};
-
-let _loadTimer = null;
-
-function startLoadAnimation(inputType) {
-  const steps  = LOAD_STEPS[inputType] || LOAD_STEPS.pdf;
-  const txtEl  = document.getElementById('load-txt');
-  const logEl  = document.getElementById('load-log');
-  txtEl.textContent = '';
-  logEl.innerHTML   = '';
-
-  let i = 0;
-
-  function showStep() {
-    if (i >= steps.length) return;
-    const s = steps[i];
-
-    // Update header
-    txtEl.style.opacity = '0';
-    txtEl.style.transition = 'opacity 0.3s';
-    setTimeout(() => {
-      txtEl.textContent = s.icon + '  ' + s.text;
-      txtEl.style.opacity = '1';
-    }, 200);
-
-    // Append to log feed (keep last 5)
-    const line = document.createElement('div');
-    line.style.cssText = 'opacity:0;transition:opacity 0.4s;padding:1px 0';
-    line.innerHTML = `<span style="opacity:0.45;margin-right:6px">${s.icon}</span><span style="color:#555">${s.text}</span>`;
-    logEl.appendChild(line);
-    setTimeout(() => { line.style.opacity = '1'; }, 50);
-
-    // Keep only last 5 lines visible
-    while (logEl.children.length > 5) {
-      const old = logEl.children[0];
-      old.style.opacity = '0';
-      setTimeout(() => { if (old.parentNode) old.parentNode.removeChild(old); }, 400);
-    }
-
-    i++;
-    // Vary delay to feel more natural
-    const delay = 1400 + (i % 3) * 300;
-    _loadTimer = setTimeout(showStep, delay);
-  }
-
-  showStep();
-}
-
-function stopLoadAnimation() {
-  if (_loadTimer) { clearTimeout(_loadTimer); _loadTimer = null; }
-  const txtEl = document.getElementById('load-txt');
-  const logEl = document.getElementById('load-log');
-  if (txtEl) { txtEl.textContent = ''; }
-  if (logEl) { logEl.innerHTML = ''; }
-}
-
 // ── Generate ───────────────────────────────────────────────────────────────
 async function generate() {
   const key = (document.getElementById('api-key').value||'').trim();
@@ -921,7 +827,6 @@ async function generate() {
   document.getElementById('gen-btn').disabled = true;
   document.getElementById('loading').style.display  = '';
   document.getElementById('results').style.display  = 'none';
-  startLoadAnimation(activeTab);
 
   const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const now   = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
@@ -944,6 +849,7 @@ Extract all schedulable PM schedules. Apply all rules. Return JSON only.`;
   errBanner.style.display = 'none';
 
   try {
+    document.getElementById('load-txt').textContent = 'AI is reading the document…';
     const baseUrl = (document.getElementById('api-base-url').value||'https://litellm.sparkai.brightlysoftware.io').replace(/\/+$/, '');
     const res = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
@@ -978,6 +884,7 @@ ${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
       throw Object.assign(new Error(friendly), { friendly: true });
     }
 
+    document.getElementById('load-txt').textContent = 'Building PM forms…';
     const data = await res.json();
     let raw = data.content[0].text.trim();
     if (raw.startsWith('```')) raw = raw.replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
@@ -986,12 +893,10 @@ ${apiMsg ? `<br><em style="color:#999">${apiMsg}</em>` : ''}`;
     pmStates = {};
     (apiResult.pms||[]).forEach(pm => { pmStates[`pm${pm.pm_number}`] = 'pending'; });
 
-    stopLoadAnimation();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('gen-btn').disabled = false;
     renderResults();
   } catch(err) {
-    stopLoadAnimation();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('gen-btn').disabled = false;
     if (err.friendly) {
@@ -1198,13 +1103,13 @@ function buildCard(pm, r) {
         const sel = (pm.compliance_agency||'')=== a ? ' selected':'';
         return `<option value="${a}"${sel}>${a}</option>`;
       }).join('')}
-      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?('<option value="'+esc(pm.compliance_agency)+'" selected>'+esc(pm.compliance_agency)+'</option>'):''}
+      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?`<option value="${esc(pm.compliance_agency)}" selected>${esc(pm.compliance_agency)}</option>`:''}
     </select>
     <input id="${id}-comp-other" type="text" class="field-input"
       style="margin-top:8px;display:${(pm.compliance_agency==='Other')?'block':'none'}"
       value="${esc(pm.compliance_agency==='Other'?'':pm.compliance_agency||'')}"
       placeholder="Enter agency or standard name">
-    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?'<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected — confirm before creating</span>':''}
+    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?`<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected from ${pm.category==='Compliance'?'document/voice':'source'} — confirm before creating</span>`:''}
   </div>
 
   <!-- Actions -->
