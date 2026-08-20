@@ -714,7 +714,8 @@ async function handleFile(file) {
   try {
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf, disableFontFace: true, disableRange: true }).promise;
-    const MAX_PAGES = Math.min(pdf.numPages, 60); // cap at 60 pages to avoid OOM
+    const totalPages = pdf.numPages; // store before destroy
+    const MAX_PAGES  = Math.min(totalPages, 60); // cap at 60 pages to avoid OOM
     let txt = '';
     for (let i = 1; i <= MAX_PAGES; i++) {
       const page  = await pdf.getPage(i);
@@ -724,8 +725,8 @@ async function handleFile(file) {
     }
     pdf.destroy(); // free PDF.js memory after extraction
     pdfContent = sanitizeDoc(txt.trim());
-    const truncated = pdf.numPages > MAX_PAGES ? ` (first ${MAX_PAGES} of ${pdf.numPages} pages)` : '';
-    fi.textContent = `✅ ${file.name} — ${(file.size/1024).toFixed(1)} KB — ${pdfContent.length.toLocaleString()} characters extracted${truncated}`;
+    const truncated = totalPages > MAX_PAGES ? ' (first ' + MAX_PAGES + ' of ' + totalPages + ' pages)' : '';
+    fi.textContent = '✅ ' + file.name + ' — ' + (file.size/1024).toFixed(1) + ' KB — ' + pdfContent.length.toLocaleString() + ' characters extracted' + truncated;
     document.getElementById('pdf-prev').style.display = '';
     document.getElementById('pdf-pre').textContent = pdfContent.slice(0,2000) + (pdfContent.length>2000?'\n…':'' );
   } catch {
@@ -1197,13 +1198,13 @@ function buildCard(pm, r) {
         const sel = (pm.compliance_agency||'')=== a ? ' selected':'';
         return `<option value="${a}"${sel}>${a}</option>`;
       }).join('')}
-      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?`<option value="${esc(pm.compliance_agency)}" selected>${esc(pm.compliance_agency)}</option>`:''}
+      ${(pm.compliance_agency&&pm.compliance_agency.trim()&&!['OSHA','FDA','EPA','ISO 9001','ISO 14001','ISO 45001','NFPA','ANSI','ASHRAE','GMP','cGMP','HACCP','NSF','UL','ATEX','NEC','21 CFR','Local Authority','Other',''].includes(pm.compliance_agency))?('<option value="'+esc(pm.compliance_agency)+'" selected>'+esc(pm.compliance_agency)+'</option>'):''}
     </select>
     <input id="${id}-comp-other" type="text" class="field-input"
       style="margin-top:8px;display:${(pm.compliance_agency==='Other')?'block':'none'}"
       value="${esc(pm.compliance_agency==='Other'?'':pm.compliance_agency||'')}"
       placeholder="Enter agency or standard name">
-    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?`<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected from ${pm.category==='Compliance'?'document/voice':'source'} — confirm before creating</span>`:''}
+    ${(pm.compliance_agency&&pm.compliance_agency.trim()&&pm.compliance_agency!=='Other')?'<span style="font-size:0.72rem;color:#b45309;margin-top:3px;display:block">🤖 AI detected — confirm before creating</span>':''}
   </div>
 
   <!-- Actions -->
